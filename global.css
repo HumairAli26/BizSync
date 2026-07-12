@@ -1,0 +1,217 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+
+@import "nativewind/theme";
+
+@theme {
+  --color-background: #121212; /* Main application background */
+  --color-surface: #18181a; /* Cards, forms and containers */
+  --color-surface-elevated: #1f1f22; /* Elevated cards and highlighted sections */
+  --color-surface-overlay: #2a2a2d; /* Dialogs, bottom sheets and modals */
+
+  --color-primary: #cad7be; /* Primary brand color used for buttons and highlights */
+  --color-primary-hover: #d8e4cd; /* Hover state for primary actions */
+  --color-primary-active: #b8c6ac; /* Pressed state for primary actions */
+
+  --color-secondary: #e68d4a; /* Accent color for analytics and key metrics */
+  --color-secondary-hover: #f19a58; /* Hover state for secondary actions */
+
+  --color-text: #ffffff; /* Primary text color */
+  --color-text-secondary: #b3b3b7; /* Secondary descriptions and labels */
+  --color-text-muted: #8e8e93; /* Placeholder and disabled text */
+  --color-text-inverse: #242424; /* Dark text displayed on light backgrounds */
+
+  --color-border: #2b2b2d; /* Default border color */
+  --color-border-light: #39393d; /* Borders for elevated components */
+  --color-divider: #303033; /* Dividers between list items and sections */
+
+  --color-success: #22c55e; /* Success messages and completed actions */
+  --color-warning: #f59e0b; /* Warning messages and pending actions */
+  --color-error: #ef4444; /* Error messages and destructive actions */
+  --color-info: #3b82f6; /* Informational messages */
+
+  --color-stock-high: #22c55e; /* Healthy inventory level */
+  --color-stock-medium: #f59e0b; /* Inventory running low */
+  --color-stock-low: #ef4444; /* Critical stock level */
+
+  --color-paid: #22c55e; /* Paid invoice status */
+  --color-pending: #f59e0b; /* Pending invoice status */
+  --color-overdue: #ef4444; /* Overdue invoice status */
+  --color-draft: #6b7280; /* Draft invoice status */
+
+  --color-profit: #22c55e; /* Profit indicators */
+  --color-loss: #ef4444; /* Loss indicators */
+  --color-expense: #f59e0b; /* Expense indicators */
+  --color-income: #3b82f6; /* Income indicators */
+
+  --color-chart-blue: #3b82f6; /* Sales charts */
+  --color-chart-green: #22c55e; /* Revenue charts */
+  --color-chart-orange: #f59e0b; /* Expense charts */
+  --color-chart-purple: #8b5cf6; /* Customer charts */
+  --color-chart-red: #ef4444; /* Returns and refunds */
+
+  --spacing-0: 0px; /* No spacing */
+  --spacing-1: 4px; /* Extra small spacing */
+  --spacing-2: 8px; /* Small spacing */
+  --spacing-3: 12px; /* Compact spacing */
+  --spacing-4: 16px; /* Default spacing */
+  --spacing-5: 20px; /* Comfortable spacing */
+  --spacing-6: 24px; /* Large spacing */
+  --spacing-8: 32px; /* Section spacing */
+  --spacing-10: 40px; /* Large section spacing */
+  --spacing-12: 48px; /* Screen padding */
+  --spacing-16: 64px; /* Large layout spacing */
+
+  --radius-xs: 6px; /* Small badges and chips */
+  --radius-sm: 10px; /* Inputs and compact cards */
+  --radius-md: 14px; /* Standard cards */
+  --radius-lg: 18px; /* Buttons and large cards */
+  --radius-xl: 24px; /* Modals and feature cards */
+  --radius-full: 9999px; /* Circular components */
+
+  --text-xs: 12px; /* Caption text */
+  --text-sm: 14px; /* Secondary text */
+  --text-base: 16px; /* Default body text */
+  --text-lg: 18px; /* Large body text */
+  --text-xl: 22px; /* Small headings */
+  --text-2xl: 28px; /* Section headings */
+  --text-3xl: 36px; /* Screen titles */
+
+  --font-weight-regular: 400; /* Regular text */
+  --font-weight-medium: 500; /* Medium emphasis */
+  --font-weight-semibold: 600; /* Buttons and labels */
+  --font-weight-bold: 700; /* Headings */
+
+  --shadow-sm: 0 2px 6px rgb(0 0 0 / 0.15); /* Small elevation */
+  --shadow-md: 0 8px 20px rgb(0 0 0 / 0.2); /* Medium elevation */
+  --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.3); /* Large elevation */
+
+  --duration-fast: 150ms; /* Quick interactions */
+  --duration-normal: 250ms; /* Standard transitions */
+  --duration-slow: 400ms; /* Screen transitions */
+
+  --z-dropdown: 100; /* Dropdown menus */
+  --z-sticky: 200; /* Sticky headers */
+  --z-modal: 300; /* Dialogs and modals */
+  --z-toast: 400; /* Toast notifications */
+  --z-tooltip: 500; /* Tooltips */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-text;
+  }
+}
+
+@layer components {
+  .screen {
+    @apply flex-1 bg-background px-4;
+  }
+
+  .container {
+    @apply px-4;
+  }
+
+  .card {
+    @apply rounded-xl bg-surface p-4;
+  }
+
+  .card-elevated {
+    @apply rounded-2xl bg-surface-elevated p-5;
+  }
+
+  .btn-primary {
+    @apply items-center justify-center rounded-xl bg-primary px-5 py-4;
+  }
+
+  .btn-secondary {
+    @apply items-center justify-center rounded-xl border border-border bg-surface px-5 py-4;
+  }
+
+  .btn-danger {
+    @apply items-center justify-center rounded-xl bg-error px-5 py-4;
+  }
+
+  .btn-text {
+    @apply font-semibold text-text-inverse;
+  }
+
+  .input {
+    @apply rounded-xl border border-border bg-surface px-4 py-4 text-text;
+  }
+
+  .input-label {
+    @apply mb-2 text-sm font-medium text-text-secondary;
+  }
+
+  .divider {
+    @apply h-px bg-divider;
+  }
+
+  .badge-success {
+    @apply rounded-full bg-success px-3 py-1;
+  }
+
+  .badge-warning {
+    @apply rounded-full bg-warning px-3 py-1;
+  }
+
+  .badge-error {
+    @apply rounded-full bg-error px-3 py-1;
+  }
+
+  .page-title {
+    @apply text-3xl font-bold text-text;
+  }
+
+  .section-title {
+    @apply text-xl font-semibold text-text;
+  }
+
+  .section-subtitle {
+    @apply text-sm text-text-secondary;
+  }
+
+  .row {
+    @apply flex-row items-center;
+  }
+
+  .row-between {
+    @apply flex-row items-center justify-between;
+  }
+
+  .center {
+    @apply items-center justify-center;
+  }
+}
+
+@layer utilities {
+  .safe-padding {
+    @apply px-4 py-6;
+  }
+
+  .content-spacing {
+    @apply gap-4;
+  }
+
+  .card-spacing {
+    @apply space-y-4;
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-md);
+  }
+
+  .shadow-modal {
+    box-shadow: var(--shadow-lg);
+  }
+
+  .rounded-app {
+    border-radius: var(--radius-lg);
+  }
+}
