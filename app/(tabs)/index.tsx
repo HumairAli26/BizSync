@@ -20,6 +20,12 @@ export default function App() {
       >
         Sign Up
       </Link>
+      <Link
+        href="/(auth)/basic"
+        className="mt-4 text-lg text-text bg-primary p-2 rounded-lg"
+      >
+        Main Page
+      </Link>
     </View>
   );
 }
