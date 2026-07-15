@@ -1,23 +1,27 @@
 import { tabs } from "@/constants/data";
-import "@/global.css";
+import { Colors, components } from "@/constants/theme";
 import clsx from "clsx";
 import { Tabs } from "expo-router";
 import { type LucideIcon } from "lucide-react-native";
 import { View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type TabIconProps = {
   focused: boolean;
   icon: LucideIcon;
 };
 
+const tabBar = components.tabBar;
+
 const TabLayout = () => {
+  const insets = useSafeAreaInsets();
   const TabIcon = ({ focused, icon }: TabIconProps) => {
     const Icon = icon;
 
     return (
-      <View className="tabs-icon bg-background ">
+      <View className="tabs-icon  bg-{Colors.background}">
         <View className={clsx("tabs-pill", focused && "tabs-active")}>
-          <Icon size={20} color={focused ? "#fff" : "#6b7280"} />
+          <Icon size={20} color={focused ? "#fff" : Colors.textMuted} />
         </View>
       </View>
     );
@@ -26,11 +30,16 @@ const TabLayout = () => {
     <Tabs
       screenOptions={{
         headerShown: false,
-        //tabBarShowLabel: false,
-        tabBarActiveTintColor: "#ffffff",
+        tabBarActiveTintColor: Colors.text,
         tabBarStyle: {
-          backgroundColor: "#121212",
+          backgroundColor: Colors.background,
           position: "absolute",
+          bottom: Math.min(insets.bottom, tabBar.horizontalInset),
+        },
+        tabBarItemStyle: {
+          paddingVertical: tabBar.height / 2 - tabBar.iconFrame / 1.6,
+          justifyContent: "center",
+          alignItems: "center",
         },
       }}
     >

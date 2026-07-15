@@ -78,6 +78,17 @@
   --radius-md: 14px;
   --radius-lg: 18px;
   --radius-xl: 24px;
+
+  --font-inter-light: "Inter-Light";
+  --font-inter-regular: "Inter-Regular";
+  --font-inter-medium: "Inter-Medium";
+  --font-inter-semibold: "Inter-SemiBold";
+  --font-inter-bold: "Inter-Bold";
+  --font-inter-extrabold: "Inter-ExtraBold";
+
+  --font-inter-light-italic: "InterDisplay-LightItalic";
+  --font-inter-bold-italic: "Inter-BoldItalic";
+  --font-inter-extrabold-italic: "Inter-ExtraBoldItalic";
 }
 
 @layer components {

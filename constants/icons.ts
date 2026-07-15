@@ -1,4 +1,5 @@
 import {
+  Box,
   ChartNoAxesColumn,
   FileText,
   House,
@@ -12,6 +13,7 @@ export const icons = {
   products: Package,
   invoices: FileText,
   settings: Settings,
+  box: Box,
 } as const;
 
 //export icons;
