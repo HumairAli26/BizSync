@@ -38,6 +38,22 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Inter-Bold.ttf",
+            "./assets/fonts/Inter-BoldItalic.ttf",
+            "./assets/fonts/Inter-ExtraBold.ttf",
+            "./assets/fonts/Inter-ExtraBoldItalic.ttf",
+            "./assets/fonts/Inter-Medium.ttf",
+            "./assets/fonts/Inter-Regular.ttf",
+            "expo-fonts/Inter-SemiBold.ttf",
+            "./assets/fonts/InterDisplay-Light.ttf",
+            "./assets/fonts/fonts/InterDisplay-LightItalic.ttf"
+          ]
+        }
       ]
     ],
     "experiments": {

@@ -36,6 +36,11 @@ const TabLayout = () => {
           position: "absolute",
           bottom: Math.min(insets.bottom, tabBar.horizontalInset),
         },
+        tabBarItemStyle: {
+          paddingVertical: tabBar.height / 2 - tabBar.iconFrame / 1.6,
+          justifyContent: "center",
+          alignItems: "center",
+        },
       }}
     >
       {tabs.map((tab) => (

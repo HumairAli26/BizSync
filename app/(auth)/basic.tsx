@@ -28,18 +28,20 @@ const basic = () => {
       >
         Made Simple
       </Text>
-      <Link
-        href="/(auth)/sign-in"
-        className="mt-4 text-lg text-text bg-primary p-2 rounded-lg"
-      >
-        Sign In
-      </Link>
-      <Link
-        href="/(auth)/sign-up"
-        className="mt-4 text-lg text-text bg-primary p-2 rounded-lg"
-      >
-        Sign Up
-      </Link>
+      <View className="flex-row gap-9 mt-6">
+        <Link
+          href="/(auth)/sign-in"
+          className=" mt-5 text-lg text-text bg-primary p-2 rounded-lg"
+        >
+          Sign In
+        </Link>
+        <Link
+          href="/(auth)/sign-up"
+          className=" mt-5 text-lg text-text bg-primary p-2 rounded-lg"
+        >
+          Sign Up
+        </Link>
+      </View>
     </View>
   );
 };
