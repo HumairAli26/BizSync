@@ -2,14 +2,8 @@ import { tabs } from "@/constants/data";
 import { Colors, components } from "@/constants/theme";
 import clsx from "clsx";
 import { Tabs } from "expo-router";
-import { type LucideIcon } from "lucide-react-native";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-type TabIconProps = {
-  focused: boolean;
-  icon: LucideIcon;
-};
 
 const tabBar = components.tabBar;
 
@@ -19,8 +13,8 @@ const TabLayout = () => {
     const Icon = icon;
 
     return (
-      <View className="tabs-icon  bg-{Colors.background}">
-        <View className={clsx("tabs-pill", focused && "tabs-active")}>
+      <View className="tabs-icon  bg-background">
+        <View className={clsx("tabs-pill")}>
           <Icon size={20} color={focused ? "#fff" : Colors.textMuted} />
         </View>
       </View>

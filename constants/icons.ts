@@ -1,4 +1,5 @@
 import {
+  Bell,
   Box,
   ChartNoAxesColumn,
   FileText,
@@ -8,6 +9,7 @@ import {
 } from "lucide-react-native";
 
 export const icons = {
+  bell: Bell,
   home: House,
   analytics: ChartNoAxesColumn,
   products: Package,
@@ -16,4 +18,4 @@ export const icons = {
   box: Box,
 } as const;
 
-//export icons;
+export type icons = keyof typeof icons;

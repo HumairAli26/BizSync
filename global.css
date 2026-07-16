@@ -7,78 +7,54 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Backgrounds */
   --bg: #121212;
   --surface: #18181a;
   --surface-2: #1f1f22;
   --overlay: #2a2a2d;
 
+  /* Text */
   --text: #ffffff;
   --text-secondary: #b3b3b7;
   --text-muted: #8e8e93;
   --text-inverse: #242424;
 
+  /* Brand */
   --primary: #647652;
   --primary-hover: #d8e4cd;
   --primary-active: #b8c6ac;
 
+  /* Accent */
   --accent: #e68d4a;
   --accent-hover: #f19a58;
 
+  /* Semantic */
   --success: #22c55e;
   --warning: #f59e0b;
   --error: #ef4444;
   --info: #3b82f6;
 
+  /* Borders */
   --border: #2b2b2d;
   --border-light: #39393d;
 
+  /* Inputs */
   --input: #1f1f22;
-  --ring: var(--primary);
 
-  --radius: 14px;
+  /* Radius */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
 
+  /* Charts */
   --chart-sales: #3b82f6;
   --chart-revenue: #22c55e;
   --chart-expenses: #f59e0b;
   --chart-customers: #8b5cf6;
   --chart-returns: #ef4444;
 
-  --sidebar: var(--surface);
-  --sidebar-text: var(--text);
-  --sidebar-active: var(--primary);
-  --sidebar-border: var(--border);
-}
-
-@theme inline {
-  --color-background: var(--bg);
-
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-overlay: var(--overlay);
-
-  --color-text: var(--text);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-muted: var(--text-muted);
-
-  --color-primary: var(--primary);
-  --color-primary-hover: var(--primary-hover);
-  --color-primary-active: var(--primary-active);
-
-  --color-accent: var(--accent);
-
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-error: var(--error);
-  --color-info: var(--info);
-
-  --color-border: var(--border);
-  --color-input: var(--input);
-
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
-
+  /* Fonts */
   --font-inter-light: "Inter-Light";
   --font-inter-regular: "Inter-Regular";
   --font-inter-medium: "Inter-Medium";
@@ -91,36 +67,453 @@
   --font-inter-extrabold-italic: "Inter-ExtraBoldItalic";
 }
 
+@theme inline {
+  --color-background: var(--bg);
+
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-overlay: var(--overlay);
+
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-inverse: var(--text-inverse);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
+
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
+  --color-input: var(--input);
+
+  --color-chart-sales: var(--chart-sales);
+  --color-chart-revenue: var(--chart-revenue);
+  --color-chart-expenses: var(--chart-expenses);
+  --color-chart-customers: var(--chart-customers);
+  --color-chart-returns: var(--chart-returns);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --font-inter-light: var(--font-inter-light);
+  --font-inter-regular: var(--font-inter-regular);
+  --font-inter-medium: var(--font-inter-medium);
+  --font-inter-semibold: var(--font-inter-semibold);
+  --font-inter-bold: var(--font-inter-bold);
+  --font-inter-extrabold: var(--font-inter-extrabold);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-text;
+  }
+}
+
 @layer components {
-  .screen {
-    @apply flex-1 bg-background px-5;
+  /* ---------- Tabs ---------- */
+
+  .tabs-icon {
+    @apply size-14 items-center justify-center;
   }
 
-  .card {
-    @apply rounded-lg bg-surface border border-border p-4;
+  .tabs-pill {
+    @apply size-14 items-center justify-center rounded-full;
   }
 
-  .card-elevated {
-    @apply rounded-lg bg-surface-2 border border-border p-4;
+  .tabs-active {
+    @apply bg-background;
   }
 
-  .section {
-    @apply mt-6;
+  .tabs-glyph {
+    @apply size-6 text-text;
   }
 
-  .input {
-    @apply h-12 rounded-lg bg-input border border-border px-4 text-text;
+  /* ---------- Home Header ---------- */
+
+  .home-header {
+    @apply mb-6 flex-row items-center justify-between;
   }
 
-  .btn-primary {
-    @apply rounded-lg bg-primary px-5 py-3;
+  .home-user {
+    @apply flex-row items-center gap-3;
   }
 
-  .btn-secondary {
-    @apply rounded-lg bg-surface-2 border border-border px-5 py-3;
+  .home-avatar {
+    @apply size-14 rounded-full;
   }
 
-  .divider {
-    @apply h-px bg-border;
+  .home-user-name {
+    @apply text-3xl font-inter-bold text-text;
+  }
+
+  .home-add-icon {
+    @apply size-12 items-center justify-center rounded-2xl bg-primary;
+  }
+
+  /* ---------- Balance Card ---------- */
+
+  .home-balance-card {
+    @apply rounded-3xl border border-border bg-surface p-6;
+  }
+
+  .home-balance-label {
+    @apply text-sm font-inter-medium text-text-secondary;
+  }
+
+  .home-balance-row {
+    @apply mt-5 flex-row items-center justify-between;
+  }
+
+  .home-balance-amount {
+    @apply text-4xl font-inter-bold text-text;
+  }
+
+  .home-balance-date {
+    @apply text-sm font-inter-semibold text-success;
+  }
+
+  /* ---------- Lists ---------- */
+
+  .list-head {
+    @apply mt-8 mb-5 flex-row items-center justify-between;
+  }
+
+  .list-title {
+    @apply text-2xl font-inter-bold text-text;
+  }
+
+  .list-action {
+    @apply rounded-xl border border-border bg-surface px-4 py-2;
+  }
+
+  .list-action-text {
+    @apply font-inter-semibold text-text;
+  }
+
+  /* ---------- Upcoming ---------- */
+
+  .upcoming-card {
+    @apply mr-4 w-48 rounded-3xl border border-border bg-surface p-5;
+  }
+
+  .upcoming-row {
+    @apply flex-row items-center justify-between;
+  }
+
+  .upcoming-icon {
+    @apply size-12 items-center justify-center rounded-xl bg-surface-2;
+  }
+
+  .upcoming-price {
+    @apply mt-5 text-3xl font-inter-bold text-text;
+  }
+
+  .upcoming-meta {
+    @apply mt-1 text-sm font-inter-medium text-text-secondary;
+  }
+
+  .upcoming-name {
+    @apply mt-3 text-base font-inter-semibold text-text;
+  }
+
+  /* ---------- Subscription Cards ---------- */
+
+  .sub-card {
+    @apply rounded-3xl border border-border bg-surface p-5;
+  }
+
+  .sub-card-expanded {
+    @apply bg-surface-2;
+  }
+
+  .sub-head {
+    @apply flex-row items-center;
+  }
+
+  .sub-main {
+    @apply flex-1 flex-row items-center gap-4;
+  }
+
+  .sub-icon {
+    @apply size-14 items-center justify-center rounded-2xl bg-surface-2;
+  }
+
+  .sub-copy {
+    @apply flex-1;
+  }
+
+  .sub-title {
+    @apply text-lg font-inter-bold text-text;
+  }
+
+  .sub-meta {
+    @apply mt-1 text-sm font-inter-medium text-text-secondary;
+  }
+
+  .sub-price-box {
+    @apply items-end;
+  }
+
+  .sub-price {
+    @apply text-xl font-inter-bold text-primary;
+  }
+
+  .sub-billing {
+    @apply mt-1 text-sm font-inter-medium text-text-secondary;
+  }
+
+  .sub-body {
+    @apply mt-6 gap-5;
+  }
+
+  .sub-details {
+    @apply gap-5;
+  }
+
+  .sub-row {
+    @apply flex-row items-center justify-between;
+  }
+
+  .sub-row-copy {
+    @apply flex-1 flex-row items-center gap-2;
+  }
+
+  .sub-label {
+    @apply text-sm font-inter-medium text-text-secondary;
+  }
+
+  .sub-value {
+    @apply font-inter-semibold text-text;
+  }
+
+  .sub-cancel {
+    @apply mt-5 items-center rounded-2xl bg-error py-4;
+  }
+
+  .sub-cancel-disabled {
+    @apply opacity-40;
+  }
+
+  .sub-cancel-text {
+    @apply text-base font-inter-bold text-white;
+  }
+
+  .home-empty-state {
+    @apply py-10 text-center text-base font-inter-medium text-text-secondary;
+  }
+
+  /* ---------- Auth ---------- */
+
+  .auth-safe-area {
+    @apply flex-1 bg-background;
+  }
+
+  .auth-screen {
+    @apply flex-1 bg-background;
+  }
+
+  .auth-scroll {
+    @apply flex-1;
+  }
+
+  .auth-content {
+    @apply flex-1 px-6 pt-10 pb-8;
+  }
+
+  .auth-brand-block {
+    @apply items-center;
+  }
+
+  .auth-logo-wrap {
+    @apply mb-8 flex-row items-center gap-4;
+  }
+
+  .auth-logo-mark {
+    @apply size-16 items-center justify-center rounded-2xl bg-primary;
+  }
+
+  .auth-logo-mark-text {
+    @apply text-3xl font-inter-extrabold text-black;
+  }
+
+  .auth-wordmark {
+    @apply text-4xl font-inter-extrabold text-text;
+  }
+
+  .auth-wordmark-sub {
+    @apply mt-1 text-xs uppercase tracking-wide text-text-secondary;
+  }
+
+  .auth-title {
+    @apply mt-8 text-3xl font-inter-bold text-text;
+  }
+
+  .auth-subtitle {
+    @apply mt-2 text-center text-base text-text-secondary;
+  }
+
+  .auth-card {
+    @apply mt-8 rounded-3xl border border-border bg-surface p-6;
+  }
+
+  .auth-form {
+    @apply gap-5;
+  }
+
+  .auth-field {
+    @apply gap-2;
+  }
+
+  .auth-label {
+    @apply text-sm font-inter-semibold text-text;
+  }
+
+  .auth-input {
+    @apply rounded-2xl border border-border bg-surface-2 px-5 py-4 text-base text-text;
+  }
+
+  .auth-input-error {
+    @apply border-error;
+  }
+
+  .auth-error {
+    @apply text-xs text-error;
+  }
+
+  .auth-helper {
+    @apply text-sm text-text-secondary;
+  }
+
+  .auth-button {
+    @apply items-center rounded-2xl bg-primary py-4;
+  }
+
+  .auth-button-disabled {
+    @apply opacity-40;
+  }
+
+  .auth-button-text {
+    @apply text-base font-inter-bold text-black;
+  }
+
+  .auth-secondary-button {
+    @apply items-center rounded-2xl border border-border bg-surface py-4;
+  }
+
+  .auth-secondary-button-text {
+    @apply text-base font-inter-semibold text-text;
+  }
+
+  .auth-divider-row {
+    @apply my-6 flex-row items-center gap-3;
+  }
+
+  .auth-divider-line {
+    @apply h-px flex-1 bg-border;
+  }
+
+  .auth-divider-text {
+    @apply text-xs uppercase tracking-wide text-text-secondary;
+  }
+
+  .auth-link-row {
+    @apply mt-6 flex-row justify-center gap-1;
+  }
+
+  .auth-link-copy {
+    @apply text-sm text-text-secondary;
+  }
+
+  .auth-link {
+    @apply text-sm font-inter-bold text-primary;
+  }
+
+  /* ---------- Modal ---------- */
+
+  .modal-overlay {
+    @apply flex-1 bg-black/60;
+  }
+
+  .modal-container {
+    @apply mt-auto rounded-t-3xl bg-surface;
+  }
+
+  .modal-header {
+    @apply flex-row items-center justify-between border-b border-border px-6 py-5;
+  }
+
+  .modal-title {
+    @apply text-2xl font-inter-bold text-text;
+  }
+
+  .modal-close {
+    @apply size-10 items-center justify-center rounded-full bg-surface-2;
+  }
+
+  .modal-close-text {
+    @apply text-xl font-inter-bold text-text;
+  }
+
+  .modal-body {
+    @apply gap-6 p-6;
+  }
+
+  /* ---------- Picker ---------- */
+
+  .picker-row {
+    @apply flex-row gap-3;
+  }
+
+  .picker-option {
+    @apply flex-1 items-center rounded-2xl border border-border bg-surface py-4;
+  }
+
+  .picker-option-active {
+    @apply border-primary bg-primary/10;
+  }
+
+  .picker-option-text {
+    @apply font-inter-semibold text-text-secondary;
+  }
+
+  .picker-option-text-active {
+    @apply text-primary;
+  }
+
+  /* ---------- Categories ---------- */
+
+  .category-scroll {
+    @apply flex-row flex-wrap gap-3;
+  }
+
+  .category-chip {
+    @apply rounded-full border border-border bg-surface px-5 py-2;
+  }
+
+  .category-chip-active {
+    @apply border-primary bg-primary;
+  }
+
+  .category-chip-text {
+    @apply font-inter-medium text-text-secondary;
+  }
+
+  .category-chip-text-active {
+    @apply text-black;
   }
 }
