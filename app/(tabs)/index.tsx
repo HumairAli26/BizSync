@@ -4,14 +4,17 @@ import "@/global.css";
 import { getGreeting } from "@/lib/greetings";
 import { Link } from "expo-router";
 import { styled } from "nativewind";
-import { Text, View } from "react-native";
+import { useState } from "react";
+import { Text, TextInput, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
 const greeting = getGreeting();
 const BellIcon = icons.bell;
+const SearchIcon = icons.search;
 
 export default function App() {
+  const [search, setSearch] = useState("");
   return (
     <SafeAreaView className="flex-1 bg-background p-5">
       <View className="home-header">
@@ -47,6 +50,29 @@ export default function App() {
             </Link>
           </View>
         </View>
+      </View>
+      <View className="search-container">
+        <SearchIcon color={Colors.textMuted} className="search-icon" />
+        <TextInput
+          placeholder="Search products, invoices..."
+          placeholderTextColor={Colors.textMuted}
+          value={search}
+          onChangeText={setSearch}
+          style={{
+            flex: 1,
+            fontSize: Spacing[4],
+            color: Colors.text,
+            paddingVertical: 0,
+          }}
+        />
+      </View>
+      <View className="flex-row gap-3">
+        <View className="home-balance-card"></View>
+        <View className="home-balance-card"></View>
+      </View>
+      <View className="flex-row gap-3">
+        <View className="home-balance-card"></View>
+        <View className="home-balance-card"></View>
       </View>
     </SafeAreaView>
   );

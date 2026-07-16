@@ -35,8 +35,8 @@
   --info: #3b82f6;
 
   /* Borders */
-  --border: #2b2b2d;
-  --border-light: #39393d;
+  --border: #323234;
+  --border-light: #5d5d62;
 
   /* Inputs */
   --input: #1f1f22;
@@ -165,10 +165,36 @@
     @apply size-12 items-center justify-center rounded-2xl bg-primary;
   }
 
+  /* ---------- Search Bar ---------- */
+
+  .search-container {
+    @apply flex-row items-center rounded-xl border border-border bg-overlay px-3 py-2;
+  }
+
+  .search-icon {
+    @apply mr-2 size-4;
+  }
+
+  .search-input {
+    @apply flex-1 text-sm font-inter-regular text-text text-center;
+  }
+
+  .search-placeholder {
+    @apply text-sm font-inter-regular text-text-secondary;
+  }
+
+  .search-clear {
+    @apply ml-3 items-center justify-center;
+  }
+
+  .search-clear-icon {
+    @apply text-text-secondary;
+  }
+
   /* ---------- Balance Card ---------- */
 
   .home-balance-card {
-    @apply rounded-3xl border border-border bg-surface p-6;
+    @apply flex-1 mt-3 rounded-3xl border border-border-light bg-background p-6;
   }
 
   .home-balance-label {
