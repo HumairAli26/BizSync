@@ -28,6 +28,18 @@
   --accent: #e68d4a;
   --accent-hover: #f19a58;
 
+  --green-solid: #30d158;
+  --green-bg: rgba(48, 209, 88, 0.15); /* Today's Revenue */
+
+  --yellow-solid: #ffd60a;
+  --yellow-bg: rgba(255, 214, 10, 0.12); /* Pending Invoices */
+
+  --purple-solid: #5e5ce6;
+  --purple-bg: rgba(94, 92, 230, 0.15); /* Monthly Revenue */
+
+  --blue-solid: #5ac8fa;
+  --blue-bg: rgba(90, 200, 250, 0.15);
+
   /* Semantic */
   --success: #22c55e;
   --warning: #f59e0b;
@@ -86,7 +98,17 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
 
+  --color-green-solid: var(--green-solid);
+  --color-green-bg: var(--green-bg);
+  --color-yellow-solid: var(--yellow-solid);
+  --color-yellow-bg: var(--yellow-bg);
+  --color-purple-solid: var(--purple-solid);
+  --color-purple-bg: var(--purple-bg);
+  --color-blue-solid: var(--blue-solid);
+  --color-blue-bg: var(--blue-bg);
+
   --color-success: var(--success);
+  --color-success-accent: var(--success-accent);
   --color-warning: var(--warning);
   --color-error: var(--error);
   --color-info: var(--info);
@@ -126,6 +148,9 @@
 
 @layer components {
   /* ---------- Tabs ---------- */
+  .text-heading {
+    @apply text-text mt-4;
+  }
 
   .tabs-icon {
     @apply size-14 items-center justify-center;
@@ -197,20 +222,68 @@
     @apply flex-1 mt-3 rounded-3xl border border-border-light bg-background p-6;
   }
 
+  .card-icon {
+    @apply items-center justify-center mr-2 size-13;
+  }
+
+  .home-balance-header {
+    @apply flex-row items-center justify-between;
+  }
+
   .home-balance-label {
     @apply text-sm font-inter-medium text-text-secondary;
   }
 
   .home-balance-row {
-    @apply mt-5 flex-row items-center justify-between;
+    @apply mt-6 flex-row items-end justify-between;
   }
 
   .home-balance-amount {
-    @apply text-4xl font-inter-bold text-text;
+    @apply font-inter-bold text-text;
   }
 
   .home-balance-date {
-    @apply text-sm font-inter-semibold text-success;
+    @apply text-sm font-inter-medium text-success;
+  }
+
+  .home-balance-footer {
+    @apply mt-6 flex-row items-center justify-between;
+  }
+
+  .home-balance-change {
+    @apply rounded-full bg-success/15 px-3 py-1;
+  }
+
+  .home-balance-change-text {
+    @apply text-xs font-inter-semibold text-success;
+  }
+
+  .chart-card {
+    @apply mt-6 rounded-3xl border border-border bg-surface p-6;
+  }
+
+  .chart-header {
+    @apply mb-5 flex-row items-center justify-between;
+  }
+
+  .chart-title {
+    @apply text-xl font-inter-bold text-text;
+  }
+
+  .chart-subtitle {
+    @apply mt-1 text-sm text-text-secondary;
+  }
+
+  .chart-legend {
+    @apply flex-row gap-4;
+  }
+
+  .chart-legend-item {
+    @apply flex-row items-center gap-2;
+  }
+
+  .chart-legend-text {
+    @apply text-sm text-text-secondary;
   }
 
   /* ---------- Lists ---------- */
@@ -228,7 +301,221 @@
   }
 
   .list-action-text {
-    @apply font-inter-semibold text-text;
+    @apply font-inter-semibold text-text-muted;
+  }
+
+  /* ---------- Revenue Chart ---------- */
+
+  .chart-card {
+    @apply mt-6 rounded-3xl border border-border-light bg-background p-6;
+  }
+
+  .chart-header {
+    @apply flex-row items-start justify-between;
+  }
+
+  .chart-title-group {
+    @apply gap-1;
+  }
+
+  .chart-title {
+    @apply font-inter-bold text-text;
+  }
+
+  .chart-subtitle {
+    @apply text-sm font-inter-medium text-text-secondary;
+  }
+
+  .chart-legend {
+    @apply flex-row items-center gap-4;
+  }
+
+  .chart-legend-item {
+    @apply flex-row items-center gap-2;
+  }
+
+  .chart-legend-dot {
+    @apply h-2.5 w-2.5 rounded-full;
+  }
+
+  .chart-legend-text {
+    @apply text-sm font-inter-medium text-text-secondary;
+  }
+
+  .chart-container {
+    @apply mt-6;
+  }
+
+  .chart {
+    @apply h-56 w-full;
+  }
+
+  .chart-axis {
+    @apply text-xs font-inter-medium text-text-muted;
+  }
+
+  .chart-grid {
+    @apply border-border-light;
+  }
+
+  .chart-tooltip {
+    @apply rounded-xl border border-border bg-surface px-3 py-2;
+  }
+
+  .chart-tooltip-title {
+    @apply text-sm font-inter-semibold text-text;
+  }
+
+  .chart-tooltip-value {
+    @apply mt-1 text-base font-inter-bold text-primary;
+  }
+
+  /* ---------- Transactions ---------- */
+
+  .transactions-section {
+    @apply mt-8;
+  }
+
+  .transactions-header {
+    @apply mb-5 flex-row items-center justify-between text-text;
+  }
+
+  .transactions-title {
+    @apply font-inter-bold text-text mt-4 mb-4;
+  }
+
+  .transactions-action {
+    @apply text-base font-inter-semibold text-primary;
+  }
+
+  .transactions-card {
+    @apply rounded-3xl border border-border-light bg-background p-5;
+  }
+
+  .transaction-item {
+    @apply flex-row items-center py-4;
+  }
+
+  .transaction-divider {
+    @apply h-px bg-border-light;
+  }
+
+  .transaction-icon {
+    @apply size-14 items-center justify-center rounded-2xl;
+  }
+
+  .transaction-icon-income {
+    @apply bg-green-bg;
+  }
+
+  .transaction-icon-expense {
+    @apply bg-yellow-bg;
+  }
+
+  .transaction-content {
+    @apply ml-4 flex-1;
+  }
+
+  .transaction-name {
+    @apply text-lg font-inter-bold text-text;
+  }
+
+  .transaction-meta {
+    @apply mt-1 text-sm font-inter-medium text-text-secondary;
+  }
+
+  .transaction-amount {
+    @apply text-xl font-inter-bold;
+  }
+
+  .transaction-amount-income {
+    @apply text-success;
+  }
+
+  .transaction-amount-expense {
+    @apply text-accent;
+  }
+
+  /* ---------- Best Selling ---------- */
+
+  .products-section {
+    @apply mt-8;
+  }
+
+  .products-header {
+    @apply mb-5 flex-row items-center justify-between;
+  }
+
+  .products-title {
+    @apply font-inter-bold text-text mt-4 mb-4;
+  }
+
+  .products-action {
+    @apply text-base font-inter-semibold text-primary;
+  }
+
+  .product-card {
+    @apply mb-4 flex-row items-center rounded-3xl border border-border-light bg-background p-5;
+  }
+
+  .product-rank {
+    @apply w-10 text-xl font-inter-bold text-text-secondary;
+  }
+
+  .product-icon {
+    @apply size-14 items-center justify-center rounded-2xl bg-surface;
+  }
+
+  .product-content {
+    @apply ml-4 flex-1;
+  }
+
+  .product-name {
+    @apply text-lg font-inter-bold text-text;
+  }
+
+  .product-category {
+    @apply mt-1 text-sm font-inter-medium text-text-secondary;
+  }
+
+  .product-right {
+    @apply items-end gap-3;
+  }
+
+  .product-price {
+    @apply text-xl font-inter-bold text-text;
+  }
+
+  .product-badge {
+    @apply rounded-full px-4 py-2;
+  }
+
+  .product-badge-success {
+    @apply bg-green-bg;
+  }
+
+  .product-badge-warning {
+    @apply bg-yellow-bg;
+  }
+
+  .product-badge-error {
+    @apply bg-red-500/15;
+  }
+
+  .product-badge-text {
+    @apply text-sm font-inter-semibold;
+  }
+
+  .product-badge-text-success {
+    @apply text-success;
+  }
+
+  .product-badge-text-warning {
+    @apply text-warning;
+  }
+
+  .product-badge-text-error {
+    @apply text-error;
   }
 
   /* ---------- Upcoming ---------- */

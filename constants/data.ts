@@ -14,13 +14,13 @@ export const tabs = [
 ] as const;
 
 export const chartRev = [
-  { m: "Jan", rev: 42, exp: 28, sal: 38 },
-  { m: "Feb", rev: 38, exp: 25, sal: 45 },
-  { m: "Mar", rev: 55, exp: 31, sal: 62 },
-  { m: "Apr", rev: 48, exp: 27, sal: 55 },
-  { m: "May", rev: 62, exp: 35, sal: 71 },
-  { m: "Jun", rev: 71, exp: 38, sal: 84 },
-  { m: "Jul", rev: 68, exp: 40, sal: 79 },
+  { m: "Jan", rev: 420000, exp: 280000, sal: 380000 },
+  { m: "Feb", rev: 380000, exp: 250000, sal: 450000 },
+  { m: "Mar", rev: 550000, exp: 310000, sal: 620000 },
+  { m: "Apr", rev: 480000, exp: 270000, sal: 550000 },
+  { m: "May", rev: 620000, exp: 350000, sal: 710000 },
+  { m: "Jun", rev: 710000, exp: 380000, sal: 840000 },
+  { m: "Jul", rev: 680000, exp: 400000, sal: 790000 },
 ];
 
 export const chartWk = [
@@ -94,35 +94,35 @@ export const invoices = [
   {
     id: "INV-2024-001",
     customer: "Apex Retail Ltd.",
-    amount: 4850.0,
+    amount: 4850000.0,
     date: "Jul 10, 2024",
     status: "paid",
   },
   {
     id: "INV-2024-002",
     customer: "Metro Supplies Co.",
-    amount: 12300.0,
+    amount: 12300000.0,
     date: "Jul 8, 2024",
     status: "pending",
   },
   {
     id: "INV-2024-003",
     customer: "Sunrise Traders",
-    amount: 3200.0,
+    amount: 3200000.0,
     date: "Jun 28, 2024",
     status: "overdue",
   },
   {
     id: "INV-2024-004",
     customer: "Global Distributors",
-    amount: 8900.0,
+    amount: 8900000.0,
     date: "Jul 11, 2024",
     status: "draft",
   },
   {
     id: "INV-2024-005",
     customer: "City Mart Group",
-    amount: 2150.0,
+    amount: 2150000.0,
     date: "Jul 9, 2024",
     status: "paid",
   },

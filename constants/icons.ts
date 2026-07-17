@@ -2,8 +2,11 @@ import {
   Bell,
   Box,
   ChartNoAxesColumn,
+  DollarSign,
   FileText,
   House,
+  MoveDownRight,
+  MoveUpRight,
   Package,
   Search,
   Settings,
@@ -12,6 +15,7 @@ import {
 
 export const icons = {
   bell: Bell,
+  dollarsign: DollarSign,
   search: Search,
   home: House,
   trendup: TrendingUp,
@@ -20,6 +24,8 @@ export const icons = {
   invoices: FileText,
   settings: Settings,
   box: Box,
+  moveupright: MoveUpRight,
+  movedownright: MoveDownRight,
 } as const;
 
 export type icons = keyof typeof icons;

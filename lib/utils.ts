@@ -10,18 +10,30 @@ export function formatCurrency(
     }
 
     const normalizedCurrency = (currency || "PKR").toUpperCase();
-    const currencySymbol =
-      normalizedCurrency === "USD"
-        ? "$"
-        : normalizedCurrency === "EUR"
-          ? "€"
-          : "Rs.";
+    const formatter = new Intl.NumberFormat("en-IN", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+    const formattedValue = formatter.format(numericValue);
 
-    return `${currencySymbol} ${numericValue.toFixed(2)}`;
+    if (normalizedCurrency === "USD") {
+      return `$${formattedValue}`;
+    }
+
+    if (normalizedCurrency === "EUR") {
+      return `€${formattedValue}`;
+    }
+
+    return `Rs. ${formattedValue}`;
   } catch {
     const fallbackValue = typeof value === "number" ? value : Number(value);
     const safeValue = Number.isFinite(fallbackValue) ? fallbackValue : 0;
+    const formatter = new Intl.NumberFormat("en-IN", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+    const formattedFallback = formatter.format(safeValue);
 
-    return `Rs. ${safeValue.toFixed(2)}`;
+    return `Rs. ${formattedFallback}`;
   }
 }
