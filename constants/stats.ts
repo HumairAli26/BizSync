@@ -131,8 +131,7 @@ export const yesterdayRevenue = invoices
   .filter((i) => i.date === formatInvoiceDate(yester))
   .reduce((sum, i) => sum + getInvoiceAmount(i), 0);
 
-
-const revenueData = chartRev.map((item) => ({
+export const revenueData = chartRev.map((item) => ({
   x: item.m,
   y: item.rev,
 }));
