@@ -40,9 +40,24 @@ const RevenueGraph = () => {
         startOpacity={0.25}
         endOpacity={0.02}
         hideDataPoints
-        hideRules
-        hideYAxisText
-        hideAxesAndRules
+        hideRules={true}
+        hideAxesAndRules={false}
+        //maxValue={100}
+        //noOfSections={5}
+        //stepValue={20}
+        yAxisLabelTexts={[
+          "0",
+          "10",
+          "20",
+          "30",
+          "40",
+          "50",
+          "60",
+          "70",
+          "80",
+          "90",
+          "100",
+        ]}
         spacing={42}
         initialSpacing={10}
         endSpacing={10}
@@ -50,6 +65,10 @@ const RevenueGraph = () => {
         yAxisColor="transparent"
         textColor={Colors.textSecondary}
         xAxisLabelTextStyle={{
+          color: Colors.textSecondary,
+          fontSize: 12,
+        }}
+        yAxisTextStyle={{
           color: Colors.textSecondary,
           fontSize: 12,
         }}
