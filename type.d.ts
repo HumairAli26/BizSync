@@ -48,6 +48,11 @@ declare global {
     };
   }
 
+  interface ListHeadingProp {
+    title: string;
+    button: string;
+  }
+
   type TransactionType = "credit" | "debit";
   type TransactionCategory =
     "invoice_payment" | "supplier_payment" | "inventory_restock";

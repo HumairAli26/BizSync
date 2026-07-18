@@ -22,9 +22,23 @@ export const Colors = {
 
   // Semantic
   success: "#22c55e",
+  successaccent: "#25f571",
   warning: "#f59e0b",
   error: "#ef4444",
   info: "#3b82f6",
+
+  // Dashboard Cards
+  green: "#30D158",
+  greenBg: "rgba(48, 209, 88, 0.15)",
+
+  yellow: "#FFD60A",
+  yellowBg: "rgba(255, 214, 10, 0.12)",
+
+  purple: "#5E5CE6",
+  purpleBg: "rgba(94, 92, 230, 0.15)",
+
+  blue: "#5AC8FA",
+  blueBg: "rgba(90, 200, 250, 0.15)",
 
   // Borders
   border: "#2b2b2d",
