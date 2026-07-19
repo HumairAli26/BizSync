@@ -49,12 +49,13 @@
             "./assets/fonts/Inter-ExtraBoldItalic.ttf",
             "./assets/fonts/Inter-Medium.ttf",
             "./assets/fonts/Inter-Regular.ttf",
-            "expo-fonts/Inter-SemiBold.ttf",
+            "./assets/fonts/Inter-SemiBold.ttf",
             "./assets/fonts/InterDisplay-Light.ttf",
             "./assets/fonts/fonts/InterDisplay-LightItalic.ttf"
           ]
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
