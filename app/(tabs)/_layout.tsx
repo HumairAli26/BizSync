@@ -1,14 +1,36 @@
+import { auth } from "@/config/firebaseConfig";
 import { tabs } from "@/constants/data";
 import { Colors, components } from "@/constants/theme";
 import clsx from "clsx";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const tabBar = components.tabBar;
 
 const TabLayout = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loaded, setLoaded] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setLoaded(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (!loaded) {
+    return null;
+  }
+
+  if (!user) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
+
   const TabIcon = ({ focused, icon }: TabIconProps) => {
     const Icon = icon;
 
@@ -20,6 +42,7 @@ const TabLayout = () => {
       </View>
     );
   };
+
   return (
     <Tabs
       screenOptions={{
