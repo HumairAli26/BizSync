@@ -1,248 +1,230 @@
-import { useSignIn } from "@clerk/expo";
-import { type Href, Link, useRouter } from "expo-router";
-import React from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { auth, db } from "@/config/firebaseConfig";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import React, { useState } from "react";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-export default function Page() {
-  const { signIn, errors, fetchStatus } = useSignIn();
-  const router = useRouter();
+export default function SignInScreen() {
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [orgCode, setOrgCode] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  const [emailAddress, setEmailAddress] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [code, setCode] = React.useState("");
-
-  const handleSubmit = async () => {
-    const { error } = await signIn.password({ emailAddress, password });
-
-    if (error) {
-      console.error(JSON.stringify(error, null, 2));
+  const handleSignIn = async (): Promise<void> => {
+    if (!email || !password || !orgCode) {
+      Alert.alert("Missing fields", "Please fill in everything.");
       return;
     }
+    setLoading(true);
+    try {
+      const cred = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password,
+      );
+      const userSnap = await getDoc(doc(db, "users", cred.user.uid));
+      const userData = userSnap.data() as
+        { orgCode?: string; orgName?: string } | undefined;
 
-    if (signIn.status === "complete") {
-      await signIn.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) {
-            console.log(session.currentTask);
-            return;
-          }
+      if (
+        !userSnap.exists() ||
+        userData?.orgCode !== orgCode.trim().toUpperCase()
+      ) {
+        await signOut(auth);
+        Alert.alert("Sign in failed", "Invalid organization code.");
+        return;
+      }
 
-          const url = decorateUrl("/(tabs)");
-          if (url.startsWith("http")) {
-            window.location.href = url;
-          } else {
-            router.push(url as Href);
-          }
-        },
-      });
-    } else if (signIn.status === "needs_client_trust") {
-      await signIn.mfa.sendEmailCode();
-    } else {
-      console.error("Sign-in attempt not complete:", signIn);
+      router.replace("/(tabs)");
+    } catch (err: any) {
+      Alert.alert("Sign in failed", err.message);
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleVerify = async () => {
-    await signIn.mfa.verifyEmailCode({ code });
-
-    if (signIn.status === "complete") {
-      await signIn.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) {
-            console.log(session.currentTask);
-            return;
-          }
-
-          const url = decorateUrl("/(tabs)");
-          if (url.startsWith("http")) {
-            window.location.href = url;
-          } else {
-            router.push(url as Href);
-          }
-        },
-      });
-    } else {
-      console.error("Sign-in attempt not complete:", signIn);
-    }
-  };
-
-  if (signIn.status === "needs_client_trust") {
-    return (
-      <View style={styles.container}>
-        <Text style={[styles.title, styles.titleLarge]}>
-          Verify your account
-        </Text>
-        <TextInput
-          style={styles.input}
-          value={code}
-          placeholder="Enter your verification code"
-          placeholderTextColor="#666666"
-          onChangeText={setCode}
-          keyboardType="numeric"
-        />
-        {errors.fields.code && (
-          <Text style={styles.error}>{errors.fields.code.message}</Text>
-        )}
-        <Pressable
-          style={({ pressed }) => [
-            styles.button,
-            fetchStatus === "fetching" && styles.buttonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={handleVerify}
-          disabled={fetchStatus === "fetching"}
-        >
-          <Text style={styles.buttonText}>Verify</Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [
-            styles.secondaryButton,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={() => signIn.mfa.sendEmailCode()}
-        >
-          <Text style={styles.secondaryButtonText}>I need a new code</Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [
-            styles.secondaryButton,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={() => signIn.reset()}
-        >
-          <Text style={styles.secondaryButtonText}>Start over</Text>
-        </Pressable>
-      </View>
-    );
-  }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Sign in</Text>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <Text style={styles.title}>Welcome back</Text>
+      <Text style={styles.subtitle}>Sign in to your BizSync account</Text>
+
       <Text style={styles.label}>Email address</Text>
-      <TextInput
-        style={styles.input}
-        autoCapitalize="none"
-        value={emailAddress}
-        placeholder="Enter email"
-        placeholderTextColor="#666666"
-        onChangeText={setEmailAddress}
-        keyboardType="email-address"
-      />
-      {errors.fields.identifier && (
-        <Text style={styles.error}>{errors.fields.identifier.message}</Text>
-      )}
-      <Text style={styles.label}>Password</Text>
-      <TextInput
-        style={styles.input}
-        value={password}
-        placeholder="Enter password"
-        placeholderTextColor="#666666"
-        secureTextEntry
-        onChangeText={setPassword}
-      />
-      {errors.fields.password && (
-        <Text style={styles.error}>{errors.fields.password.message}</Text>
-      )}
-      <Pressable
-        style={({ pressed }) => [
-          styles.button,
-          (!emailAddress || !password || fetchStatus === "fetching") &&
-            styles.buttonDisabled,
-          pressed && styles.buttonPressed,
-        ]}
-        onPress={handleSubmit}
-        disabled={!emailAddress || !password || fetchStatus === "fetching"}
-      >
-        <Text style={styles.buttonText}>Continue</Text>
-      </Pressable>
-      {errors && (
-        <Text style={styles.debug}>{JSON.stringify(errors, null, 2)}</Text>
-      )}
-      <View style={styles.linkContainer}>
-        <Text>Don't have an account? </Text>
-        <Link href="/(auth)/sign-up">
-          <Text style={styles.link}>Sign up</Text>
-        </Link>
+      <View style={styles.inputWrap}>
+        <Ionicons
+          name="mail-outline"
+          size={18}
+          color="#888"
+          style={styles.icon}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="admin@bizsync.com"
+          placeholderTextColor="#666"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
       </View>
-    </View>
+
+      <View style={styles.rowBetween}>
+        <Text style={styles.label}>Password</Text>
+        <TouchableOpacity>
+          <Text style={styles.forgot}>Forgot?</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.inputWrap}>
+        <Ionicons
+          name="lock-closed-outline"
+          size={18}
+          color="#888"
+          style={styles.icon}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="••••••••"
+          placeholderTextColor="#666"
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={setPassword}
+        />
+        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+          <Ionicons
+            name={showPassword ? "eye-off-outline" : "eye-outline"}
+            size={18}
+            color="#888"
+          />
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.label}>Organization code</Text>
+      <View style={styles.inputWrap}>
+        <Ionicons
+          name="key-outline"
+          size={18}
+          color="#888"
+          style={styles.icon}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. A7F3K9"
+          placeholderTextColor="#666"
+          autoCapitalize="characters"
+          value={orgCode}
+          onChangeText={setOrgCode}
+        />
+      </View>
+
+      <TouchableOpacity
+        style={styles.button}
+        onPress={handleSignIn}
+        disabled={loading}
+      >
+        <Text style={styles.buttonText}>
+          {loading ? "Signing in..." : "Sign In"}
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={styles.orText}>or continue with</Text>
+      <View style={styles.socialRow}>
+        <TouchableOpacity style={styles.socialBtn}>
+          <Text style={styles.socialText}>Google</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.socialBtn}>
+          <Text style={styles.socialText}>Apple</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")}>
+        <Text style={styles.footerText}>
+          Don't have an account? <Text style={styles.link}>Create one</Text>
+        </Text>
+      </TouchableOpacity>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    gap: 12,
-    justifyContent: "center",
+    backgroundColor: "#0d0d0d",
+    padding: 24,
+    paddingTop: 60,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  titleLarge: {
-    fontSize: 24,
-  },
-  label: {
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: "#fff",
-  },
-  button: {
-    backgroundColor: "#0a7ea4",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  buttonPressed: {
-    opacity: 0.7,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontSize: 28,
+    fontWeight: "bold",
+    marginBottom: 6,
+    marginTop: 40,
   },
-  secondaryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  secondaryButtonText: {
-    color: "#0a7ea4",
-    fontWeight: "600",
-  },
-  linkContainer: {
+  subtitle: { color: "#999", fontSize: 14, marginBottom: 24 },
+  label: { color: "#ccc", fontSize: 13, marginBottom: 6, marginTop: 12 },
+  rowBetween: {
     flexDirection: "row",
-    gap: 4,
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 12,
+  },
+  forgot: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 50,
+  },
+  icon: { marginRight: 10 },
+  input: { flex: 1, color: "#fff", fontSize: 15 },
+  button: {
+    backgroundColor: "#5B6F3A",
+    borderRadius: 12,
+    height: 52,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 28,
+  },
+  buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  orText: {
+    color: "#777",
+    textAlign: "center",
+    marginTop: 24,
+    marginBottom: 14,
+    fontSize: 12,
+  },
+  socialRow: { flexDirection: "row", gap: 12 },
+  socialBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 12,
+    height: 48,
+    justifyContent: "center",
     alignItems: "center",
   },
-  link: {
-    color: "#0a7ea4",
-    fontWeight: "600",
+  socialText: { color: "#fff", fontWeight: "500" },
+  footerText: {
+    color: "#999",
+    textAlign: "center",
+    marginTop: 20,
+    fontSize: 13,
   },
-  error: {
-    color: "#d32f2f",
-    fontSize: 12,
-    marginTop: -8,
-  },
-  debug: {
-    fontSize: 10,
-    opacity: 0.5,
-    marginTop: 8,
-  },
+  link: { color: "#fff", fontWeight: "600" },
 });

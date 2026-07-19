@@ -1,22 +1,33 @@
+import { auth } from "@/config/firebaseConfig";
 import { tabs } from "@/constants/data";
 import { Colors, components } from "@/constants/theme";
-import { useAuth } from "@clerk/expo";
 import clsx from "clsx";
 import { Redirect, Tabs } from "expo-router";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const tabBar = components.tabBar;
 
 const TabLayout = () => {
-  const { isSignedIn, isLoaded } = useAuth();
+  const [user, setUser] = useState<User | null>(null);
+  const [loaded, setLoaded] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
 
-  if (!isLoaded) {
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setLoaded(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (!loaded) {
     return null;
   }
 
-  if (!isSignedIn) {
+  if (!user) {
     return <Redirect href="/(auth)/sign-in" />;
   }
 
