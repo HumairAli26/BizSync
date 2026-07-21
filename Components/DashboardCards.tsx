@@ -1,16 +1,10 @@
 import ChangeIndicator from "@/Components/RevenueTrend";
+import { auth, db } from "@/config/firebaseConfig";
 import { icons } from "@/constants/icons";
-import {
-    monthlyRevenue,
-    pendingInvoices,
-    todayRevenue,
-    totalProducts,
-    totalRevenue,
-    yesterdayRevenue,
-} from "@/constants/stats";
 import { Colors, Spacing } from "@/constants/theme";
 import { formatCurrency } from "@/lib/utils";
-import React from "react";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 
 const DollarIcon = icons.dollarsign;
@@ -19,6 +13,105 @@ const Invoices = icons.invoices;
 const TrendUp = icons.trendup;
 
 const DashboardCards = () => {
+  const [orgId, setOrgId] = useState<string>("");
+  const [todayRevenue, setTodayRevenue] = useState<number>(0);
+  const [yesterdayRevenue, setYesterdayRevenue] = useState<number>(0);
+  const [monthlyRevenue, setMonthlyRevenue] = useState<number>(0);
+  const [pendingInvoices, setPendingInvoices] = useState<number>(0);
+  const [totalProducts, setTotalProducts] = useState<number>(0);
+
+  // Step 1: get the current user's orgId
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    const unsubscribe = onSnapshot(doc(db, "users", uid), (snapshot) => {
+      if (snapshot.exists()) {
+        setOrgId(snapshot.data().orgId);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Step 2: once we have orgId, listen to sales for revenue numbers
+  useEffect(() => {
+    if (!orgId) return;
+
+    const salesQuery = query(
+      collection(db, "sales"),
+      where("orgId", "==", orgId),
+    );
+
+    const unsubscribe = onSnapshot(salesQuery, (snapshot) => {
+      const now = new Date();
+      const todayStr = now.toDateString();
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      const yesterdayStr = yesterday.toDateString();
+
+      let todayTotal = 0;
+      let yesterdayTotal = 0;
+      let monthTotal = 0;
+
+      snapshot.docs.forEach((docSnap) => {
+        const sale = docSnap.data();
+        const amount = sale.amount ?? 0;
+        const saleDate: Date = sale.createdAt?.toDate
+          ? sale.createdAt.toDate()
+          : new Date(sale.createdAt);
+
+        if (saleDate.toDateString() === todayStr) todayTotal += amount;
+        if (saleDate.toDateString() === yesterdayStr) yesterdayTotal += amount;
+        if (
+          saleDate.getMonth() === now.getMonth() &&
+          saleDate.getFullYear() === now.getFullYear()
+        ) {
+          monthTotal += amount;
+        }
+      });
+
+      setTodayRevenue(todayTotal);
+      setYesterdayRevenue(yesterdayTotal);
+      setMonthlyRevenue(monthTotal);
+    });
+
+    return unsubscribe;
+  }, [orgId]);
+
+  // Step 3: pending invoices count
+  useEffect(() => {
+    if (!orgId) return;
+
+    const invoicesQuery = query(
+      collection(db, "invoices"),
+      where("orgId", "==", orgId),
+      where("status", "==", "pending"),
+    );
+
+    const unsubscribe = onSnapshot(invoicesQuery, (snapshot) => {
+      setPendingInvoices(snapshot.docs.length);
+    });
+
+    return unsubscribe;
+  }, [orgId]);
+
+  // Step 4: total products count
+  useEffect(() => {
+    if (!orgId) return;
+
+    const productsQuery = query(
+      collection(db, "products"),
+      where("orgId", "==", orgId),
+    );
+
+    const unsubscribe = onSnapshot(productsQuery, (snapshot) => {
+      setTotalProducts(snapshot.docs.length);
+    });
+
+    return unsubscribe;
+  }, [orgId]);
+
   return (
     <View>
       <View className="flex-row gap-3">
@@ -46,13 +139,14 @@ const DashboardCards = () => {
               style={{ fontSize: Spacing[4.5] }}
               className="home-balance-amount"
             >
-              {formatCurrency(totalRevenue)}
+              {formatCurrency(todayRevenue)}
             </Text>
           </View>
           <View>
             <Text className="text-text-muted">Today's Revenue</Text>
           </View>
         </View>
+
         <View className="home-balance-card">
           <View className="flex-row">
             <View
@@ -85,6 +179,7 @@ const DashboardCards = () => {
           </View>
         </View>
       </View>
+
       <View className="flex-row gap-3">
         <View className="home-balance-card">
           <View className="flex-row">
@@ -114,6 +209,7 @@ const DashboardCards = () => {
             <Text className="text-text-muted">Total Products</Text>
           </View>
         </View>
+
         <View className="home-balance-card">
           <View className="flex-row">
             <View

@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   Bell,
   Box,
   ChartNoAxesColumn,
@@ -10,11 +11,14 @@ import {
   Package,
   Search,
   Settings,
+  TrendingDown,
   TrendingUp,
+  Users,
 } from "lucide-react-native";
 
 export const icons = {
   bell: Bell,
+  users: Users,
   dollarsign: DollarSign,
   search: Search,
   home: House,
@@ -24,6 +28,8 @@ export const icons = {
   invoices: FileText,
   settings: Settings,
   box: Box,
+  alertcircle: AlertCircle,
+  trenddown: TrendingDown,
   moveupright: MoveUpRight,
   movedownright: MoveDownRight,
 } as const;

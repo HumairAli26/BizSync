@@ -48,6 +48,15 @@ declare global {
     };
   }
 
+  interface UserData {
+    name: string;
+    email: string;
+    orgId: string;
+    orgName: string;
+    orgCode: string;
+    role: string;
+  }
+
   interface ListHeadingProp {
     title: string;
     button: string;
