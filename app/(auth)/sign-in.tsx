@@ -62,7 +62,6 @@ export default function SignInScreen() {
     >
       <Text style={styles.title}>Welcome back</Text>
       <Text style={styles.subtitle}>Sign in to your BizSync account</Text>
-
       <Text style={styles.label}>Email address</Text>
       <View style={styles.inputWrap}>
         <Ionicons
@@ -81,7 +80,6 @@ export default function SignInScreen() {
           onChangeText={setEmail}
         />
       </View>
-
       <View style={styles.rowBetween}>
         <Text style={styles.label}>Password</Text>
         <TouchableOpacity>
@@ -111,7 +109,6 @@ export default function SignInScreen() {
           />
         </TouchableOpacity>
       </View>
-
       <Text style={styles.label}>Organization code</Text>
       <View style={styles.inputWrap}>
         <Ionicons
@@ -129,7 +126,6 @@ export default function SignInScreen() {
           onChangeText={setOrgCode}
         />
       </View>
-
       <TouchableOpacity
         style={styles.button}
         onPress={handleSignIn}
@@ -139,8 +135,7 @@ export default function SignInScreen() {
           {loading ? "Signing in..." : "Sign In"}
         </Text>
       </TouchableOpacity>
-
-      <Text style={styles.orText}>or continue with</Text>
+      /*<Text style={styles.orText}>or continue with</Text>
       <View style={styles.socialRow}>
         <TouchableOpacity style={styles.socialBtn}>
           <Text style={styles.socialText}>Google</Text>
@@ -149,7 +144,7 @@ export default function SignInScreen() {
           <Text style={styles.socialText}>Apple</Text>
         </TouchableOpacity>
       </View>
-
+      */
       <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")}>
         <Text style={styles.footerText}>
           Don't have an account? <Text style={styles.link}>Create one</Text>

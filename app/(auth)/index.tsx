@@ -28,18 +28,20 @@ const basic = () => {
       >
         Made Simple
       </Text>
-      <View className="flex-row gap-9 mt-6">
+      <View className="gap-5 mt-6">
         <Link
           href="/(auth)/sign-in"
-          className=" mt-5 text-lg text-text bg-primary p-2 rounded-lg"
+          className="items-center text-lg text-text bg-primary p-2 rounded-lg"
+          style={{ borderRadius: 12, paddingHorizontal: 24 }}
         >
-          Sign In
+          <Text style={{ paddingHorizontal: 16 }}>Join an Organization</Text>
         </Link>
         <Link
           href="/(auth)/sign-up"
-          className=" mt-5 text-lg text-text bg-primary p-2 rounded-lg"
+          className="items-center text-lg text-text bg-primary p-2 rounded-lg"
+          style={{ borderRadius: 12, paddingHorizontal: 16 }}
         >
-          Sign Up
+          <Text style={{ paddingHorizontal: 16 }}>Create an Organization</Text>
         </Link>
       </View>
     </View>

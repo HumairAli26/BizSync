@@ -1,7 +1,7 @@
 import { auth, db } from "@/config/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
 import { collection, doc, setDoc } from "firebase/firestore";
 import React, { useState } from "react";
 import {
@@ -37,15 +37,20 @@ export default function SignUpScreen() {
       return;
     }
     setLoading(true);
+
+    let createdUser = null;
+
     try {
       const cred = await createUserWithEmailAndPassword(
         auth,
         email.trim(),
         password,
       );
-      const orgCode = generateOrgCode();
+      createdUser = cred.user;
 
+      const orgCode = generateOrgCode();
       const orgRef = doc(collection(db, "organizations"));
+
       await setDoc(orgRef, {
         name: orgName,
         code: orgCode,
@@ -67,6 +72,15 @@ export default function SignUpScreen() {
         [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
       );
     } catch (err: any) {
+      // If Auth succeeded but Firestore writes failed, roll back the Auth account
+      // so the user isn't left in a broken "email already in use" state.
+      if (createdUser) {
+        try {
+          await deleteUser(createdUser);
+        } catch (cleanupErr) {
+          console.error("Failed to roll back orphaned auth user:", cleanupErr);
+        }
+      }
       Alert.alert("Sign up failed", err.message);
     } finally {
       setLoading(false);
