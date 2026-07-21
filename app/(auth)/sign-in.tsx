@@ -1,8 +1,10 @@
 import { auth, db } from "@/config/firebaseConfig";
+import { Colors, Spacing } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { Box } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   Alert,
@@ -60,6 +62,9 @@ export default function SignInScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <View className="p-6 rounded-4xl items-center justify-center bg-primary">
+        <Box size={Spacing[18]} color={Colors.text} />
+      </View>
       <Text style={styles.title}>Welcome back</Text>
       <Text style={styles.subtitle}>Sign in to your BizSync account</Text>
       <Text style={styles.label}>Email address</Text>
@@ -135,7 +140,7 @@ export default function SignInScreen() {
           {loading ? "Signing in..." : "Sign In"}
         </Text>
       </TouchableOpacity>
-      /*<Text style={styles.orText}>or continue with</Text>
+      {/*<Text style={styles.orText}>or continue with</Text>
       <View style={styles.socialRow}>
         <TouchableOpacity style={styles.socialBtn}>
           <Text style={styles.socialText}>Google</Text>
@@ -144,7 +149,7 @@ export default function SignInScreen() {
           <Text style={styles.socialText}>Apple</Text>
         </TouchableOpacity>
       </View>
-      */
+      */}
       <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")}>
         <Text style={styles.footerText}>
           Don't have an account? <Text style={styles.link}>Create one</Text>
