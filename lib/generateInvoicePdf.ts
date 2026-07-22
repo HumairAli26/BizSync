@@ -1,26 +1,83 @@
+import { File, Paths } from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+
+type InvoiceLineItem = {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
 
 type InvoicePdfData = {
   invoiceNumber: string;
   date: string;
   client: string;
-  amount: number;
   status: string;
   orgName: string;
   orgEmail?: string;
   orgPhone?: string;
   orgAddress?: string;
+  items?: InvoiceLineItem[];
+  // Optional fallback total if no items are provided (kept for backwards compatibility)
+  amount?: number;
 };
 
-function formatMoney(amount: number): string {
-  return amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+// ---- Pakistani Rupee formatting (Rs. 1,23,456.00 style) ----
+function formatPKR(amount: number | null | undefined): string {
+  const value = typeof amount === "number" && !isNaN(amount) ? amount : 0;
+  const isNegative = value < 0;
+  const fixed = Math.abs(value).toFixed(2);
+  const [intPart, decPart] = fixed.split(".");
+
+  let lastThree = intPart.slice(-3);
+  const otherNumbers = intPart.slice(0, -3);
+  if (otherNumbers !== "") {
+    lastThree = "," + lastThree;
+  }
+  const formattedInt =
+    otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + lastThree;
+
+  return `Rs. ${isNegative ? "-" : ""}${formattedInt}.${decPart}`;
+}
+
+function sanitizeForFilename(value: string): string {
+  return (
+    value
+      .trim()
+      .replace(/[^a-zA-Z0-9-_ ]/g, "")
+      .replace(/\s+/g, "-")
+      .slice(0, 60) || "Unnamed"
+  );
 }
 
 function buildInvoiceHtml(data: InvoicePdfData): string {
+  const items: InvoiceLineItem[] =
+    data.items && data.items.length > 0
+      ? data.items
+      : [
+          {
+            name: "Services rendered",
+            quantity: 1,
+            unitPrice: data.amount ?? 0,
+            lineTotal: data.amount ?? 0,
+          },
+        ];
+
+  const total = items.reduce((sum, item) => sum + (item.lineTotal || 0), 0);
+
+  const rowsHtml = items
+    .map(
+      (item) => `
+          <tr>
+            <td>${item.name}</td>
+            <td class="qty-col">${item.quantity}</td>
+            <td class="amount-col">${formatPKR(item.unitPrice)}</td>
+            <td class="amount-col">${formatPKR(item.lineTotal)}</td>
+          </tr>`,
+    )
+    .join("");
+
   return `
   <html>
     <head>
@@ -96,6 +153,9 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
           border-bottom: 1px solid #eee;
           font-size: 14px;
         }
+        .qty-col {
+          text-align: center;
+        }
         .amount-col {
           text-align: right;
         }
@@ -165,14 +225,13 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
         <thead>
           <tr>
             <th>Description</th>
+            <th class="qty-col">Qty</th>
+            <th class="amount-col">Unit Price</th>
             <th class="amount-col">Amount</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>Services rendered</td>
-            <td class="amount-col">$${formatMoney(data.amount)}</td>
-          </tr>
+          ${rowsHtml}
         </tbody>
       </table>
 
@@ -180,11 +239,11 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
         <div class="totals-box">
           <div class="totals-row">
             <span>Subtotal</span>
-            <span>$${formatMoney(data.amount)}</span>
+            <span>${formatPKR(total)}</span>
           </div>
           <div class="totals-row total">
             <span>Total</span>
-            <span>$${formatMoney(data.amount)}</span>
+            <span>${formatPKR(total)}</span>
           </div>
         </div>
       </div>
@@ -202,8 +261,33 @@ export async function generateAndShareInvoicePdf(
 ): Promise<void> {
   const html = buildInvoiceHtml(data);
 
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const { uri } = await Print.printToFileAsync({
+    html,
+    base64: false,
+  });
 
+  const fileName = `Invoice-${sanitizeForFilename(
+    data.invoiceNumber,
+  )}-${sanitizeForFilename(data.client)}.pdf`;
+
+  const source = new File(uri);
+  const destination = new File(Paths.cache, fileName);
+
+  try {
+    if (destination.exists) {
+      destination.delete();
+    }
+
+    source.copy(destination);
+
+    await shareFile(destination.uri, data.invoiceNumber);
+  } catch (error) {
+    console.error(error);
+    await shareFile(uri, data.invoiceNumber);
+  }
+}
+
+async function shareFile(uri: string, invoiceNumber: string): Promise<void> {
   const canShare = await Sharing.isAvailableAsync();
   if (!canShare) {
     throw new Error("Sharing is not available on this device.");
@@ -211,7 +295,7 @@ export async function generateAndShareInvoicePdf(
 
   await Sharing.shareAsync(uri, {
     mimeType: "application/pdf",
-    dialogTitle: `Invoice ${data.invoiceNumber}`,
+    dialogTitle: `Invoice ${invoiceNumber}`,
     UTI: "com.adobe.pdf",
   });
 }

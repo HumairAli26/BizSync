@@ -1,6 +1,7 @@
-import { db } from "@/config/firebaseConfig";
+import { auth, db } from "@/config/firebaseConfig";
 import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
+import { formatCurrency } from "@/lib/utils";
 import {
   addDoc,
   collection,
@@ -64,6 +65,7 @@ const ProductsScreen = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Product>>({});
+  const [orgId, setOrgId] = useState<string>("");
 
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [newProduct, setNewProduct] = useState({
@@ -76,9 +78,24 @@ const ProductsScreen = () => {
   const [savingAdd, setSavingAdd] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Real-time Firestore listener
+  // Get the current user's orgId
   React.useEffect(() => {
-    const q = query(collection(db, "products"), orderBy("name"));
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const unsubscribe = onSnapshot(doc(db, "users", uid), (snapshot) => {
+      if (snapshot.exists()) setOrgId(snapshot.data().orgId ?? "");
+    });
+    return unsubscribe;
+  }, []);
+
+  // Real-time Firestore listener, now scoped to the current org
+  React.useEffect(() => {
+    if (!orgId) return;
+    const q = query(
+      collection(db, "products"),
+      where("orgId", "==", orgId),
+      orderBy("name"),
+    );
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
@@ -95,7 +112,7 @@ const ProductsScreen = () => {
       },
     );
     return () => unsubscribe();
-  }, []);
+  }, [orgId]);
 
   const filteredProducts = useMemo(() => {
     if (!search.trim()) return products;
@@ -115,12 +132,14 @@ const ProductsScreen = () => {
     return { total, low, out };
   }, [products]);
 
-  // Checks Firestore for an existing product with the same SKU (case-insensitive)
+  // Checks Firestore for an existing product with the same SKU within this org
+  // (case-insensitive) — two different orgs can reuse the same SKU safely.
   const isSkuTaken = async (sku: string, excludeId?: string) => {
     const normalizedSku = sku.trim().toUpperCase();
-    if (!normalizedSku) return false;
+    if (!normalizedSku || !orgId) return false;
     const q = query(
       collection(db, "products"),
+      where("orgId", "==", orgId),
       where("skuUpper", "==", normalizedSku),
     );
     const snapshot = await getDocs(q);
@@ -146,6 +165,7 @@ const ProductsScreen = () => {
       }
 
       await addDoc(collection(db, "products"), {
+        orgId,
         name: newProduct.name.trim(),
         sku: newProduct.sku.trim(),
         skuUpper: newProduct.sku.trim().toUpperCase(),
@@ -331,7 +351,10 @@ const ProductsScreen = () => {
       </View>
 
       {/* Product list / empty state */}
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 10 }}
+      >
         {loading ? (
           <View className="items-center justify-center py-20">
             <Text className="text-text-muted font-inter">
@@ -435,7 +458,7 @@ const ProductsScreen = () => {
                         className="text-text font-inter-bold"
                         style={{ fontSize: Spacing[4] }}
                       >
-                        ₹{product.price}
+                        {formatCurrency(product.price)}
                       </Text>
                       <Text
                         style={{

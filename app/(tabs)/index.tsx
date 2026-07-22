@@ -1,18 +1,16 @@
+import BestSelling from "@/Components/BestSelling";
 import DashboardCards from "@/Components/DashboardCards";
 import ListHeadings from "@/Components/ListHeadings";
 import MainHeader from "@/Components/MainHeader";
+import RecentTransactions from "@/Components/RecentTransactions";
 import RevenueGraph from "@/Components/RevenueGraph";
 import SearchBar from "@/Components/SearchBar";
-import { icons } from "@/constants/icons";
-import { Colors } from "@/constants/theme";
 import "@/global.css";
 import { styled } from "nativewind";
 import { FlatList, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
-const MoveUPRight = icons.moveupright;
-const MoveDownRight = icons.movedownright;
 
 export default function App() {
   return (
@@ -35,14 +33,7 @@ export default function App() {
                 button="See All"
               ></ListHeadings>
             </View>
-            <View className="transactions-card">
-              <View
-                style={{ borderRadius: 12 }}
-                className="card-icon bg-green-bg"
-              >
-                <MoveUPRight color={Colors.green} />
-              </View>
-            </View>
+            <RecentTransactions />
 
             {/*Best Selling*/}
             <View>
@@ -51,11 +42,7 @@ export default function App() {
                 button="View All"
               ></ListHeadings>
             </View>
-            <View>
-              <View className="product-card"></View>
-              <View className="product-card"></View>
-              <View className="product-card"></View>
-            </View>
+            <BestSelling />
           </View>
         )}
         contentContainerClassName="pb-20"

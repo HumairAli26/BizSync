@@ -107,7 +107,7 @@ const AlertIcon = icons.alertcircle; // adjust to your actual icon name if diffe
 // Existing-style function — day-over-day revenue change
 export function getRevenueChange(today: number, yesterday: number) {
   if (yesterday === 0 && today === 0) {
-    return { Icon: TrendUp, color: Colors.textMuted, value: "No data yet" };
+    return { Icon: TrendUp, color: Colors.textMuted, value: "--" };
   }
   const diff = today - yesterday;
   const percent = yesterday === 0 ? 100 : (diff / yesterday) * 100;
@@ -123,7 +123,7 @@ export function getRevenueChange(today: number, yesterday: number) {
 // Month-over-month revenue trend
 export function getMonthlyRevenueChange(thisMonth: number, lastMonth: number) {
   if (lastMonth === 0 && thisMonth === 0) {
-    return { Icon: TrendUp, color: Colors.textMuted, value: "No data yet" };
+    return { Icon: TrendUp, color: Colors.textMuted, value: "--" };
   }
   const diff = thisMonth - lastMonth;
   const percent = lastMonth === 0 ? 100 : (diff / lastMonth) * 100;
@@ -142,23 +142,23 @@ export function getPendingInvoiceStatus(
   pendingAmount: number,
 ) {
   if (pendingCount === 0) {
-    return { Icon: TrendUp, color: Colors.green, value: "All caught up" };
+    return { Icon: TrendUp, color: Colors.green, value: "0" };
   }
   return {
     Icon: AlertIcon,
     color: Colors.yellow,
-    value: `$${pendingAmount.toFixed(2)} to collect`,
+    value: `$${pendingAmount.toFixed(2)}`,
   };
 }
 
 // Low stock — shows how many products are below a threshold
 export function getLowStockStatus(lowStockCount: number) {
   if (lowStockCount === 0) {
-    return { Icon: TrendUp, color: Colors.green, value: "All stocked" };
+    return { Icon: TrendUp, color: Colors.green, value: "--" };
   }
   return {
     Icon: AlertIcon,
     color: Colors.warning,
-    value: `${lowStockCount} low on stock`,
+    value: `${lowStockCount}`,
   };
 }

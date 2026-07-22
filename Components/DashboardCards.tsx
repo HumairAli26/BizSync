@@ -2,7 +2,6 @@ import ChangeIndicator from "@/Components/RevenueTrend";
 import { auth, db } from "@/config/firebaseConfig";
 import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
-import { formatCurrency } from "@/lib/utils";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import { Text, View } from "react-native";
@@ -11,6 +10,18 @@ const DollarIcon = icons.dollarsign;
 const Products = icons.products;
 const Invoices = icons.invoices;
 const TrendUp = icons.trendup;
+
+// Pakistani Rupee formatting (Rs. 1,23,456 style) — matches invoices/customers
+const formatPKR = (amount: number | null | undefined) => {
+  const value = typeof amount === "number" && !isNaN(amount) ? amount : 0;
+  const fixed = Math.round(Math.abs(value)).toString();
+  let lastThree = fixed.slice(-3);
+  const otherNumbers = fixed.slice(0, -3);
+  if (otherNumbers !== "") lastThree = "," + lastThree;
+  const formattedInt =
+    otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + lastThree;
+  return `Rs. ${formattedInt}`;
+};
 
 const DashboardCards = () => {
   const [orgId, setOrgId] = useState<string>("");
@@ -79,14 +90,14 @@ const DashboardCards = () => {
     return unsubscribe;
   }, [orgId]);
 
-  // Step 3: pending invoices count
+  // Step 3: "still owed" invoices — pending, overdue, or partially paid
   useEffect(() => {
     if (!orgId) return;
 
     const invoicesQuery = query(
       collection(db, "invoices"),
       where("orgId", "==", orgId),
-      where("status", "==", "pending"),
+      where("status", "in", ["pending", "overdue", "partial"]),
     );
 
     const unsubscribe = onSnapshot(invoicesQuery, (snapshot) => {
@@ -139,7 +150,7 @@ const DashboardCards = () => {
               style={{ fontSize: Spacing[4.5] }}
               className="home-balance-amount"
             >
-              {formatCurrency(todayRevenue)}
+              {formatPKR(todayRevenue)}
             </Text>
           </View>
           <View>
@@ -234,7 +245,7 @@ const DashboardCards = () => {
               style={{ fontSize: Spacing[4.5] }}
               className="home-balance-amount"
             >
-              {formatCurrency(monthlyRevenue)}
+              {formatPKR(monthlyRevenue)}
             </Text>
           </View>
           <View>
