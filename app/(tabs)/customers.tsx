@@ -40,9 +40,14 @@ type Customer = {
 type Invoice = {
   id: string;
   client: string;
+  customerId?: string;
+  customerName?: string;
+  invoiceNumber?: string;
+  date?: string;
   amount: number;
   amountPaid?: number;
   status?: string;
+  type?: "sales" | "purchase";
 };
 
 // Rotating avatar palette so initials get varied background colors
@@ -183,6 +188,25 @@ const Customers = () => {
     }
     return map;
   }, [invoices]);
+
+  const invoicesByCustomer = useMemo(() => {
+    const map: Record<string, Invoice[]> = {};
+    for (const customer of customers) {
+      const key = customer.id;
+      const normalizedName = normalize(customer.name);
+      map[key] = invoices
+        .filter((invoice) => {
+          if (invoice.customerId) return invoice.customerId === customer.id;
+          return normalize(invoice.client || "") === normalizedName;
+        })
+        .sort((a, b) => {
+          const ad = new Date(a.date ?? 0).getTime();
+          const bd = new Date(b.date ?? 0).getTime();
+          return bd - ad;
+        });
+    }
+    return map;
+  }, [customers, invoices]);
 
   const filteredCustomers = useMemo(() => {
     let list = customers;
@@ -381,6 +405,7 @@ const Customers = () => {
               lifetimeValue: 0,
             };
             const isActive = customer.status !== "inactive";
+            const customerInvoices = invoicesByCustomer[customer.id] ?? [];
 
             return (
               <TouchableOpacity
@@ -614,61 +639,124 @@ const Customers = () => {
                         </View>
                       </View>
                     ) : (
-                      <View className="flex-row gap-3">
-                        <TouchableOpacity
-                          onPress={(e: any) => {
-                            e.stopPropagation?.();
-                            startEdit(customer);
-                          }}
-                          style={{
-                            flex: 1,
-                            backgroundColor: "rgba(255,255,255,0.08)",
-                            borderRadius: 10,
-                            paddingVertical: 10,
-                            alignItems: "center",
-                          }}
+                      <View>
+                        <Text
+                          className="text-text font-inter-bold"
+                          style={{ fontSize: 13, marginBottom: 8 }}
                         >
-                          <Text className="text-text font-inter-bold">
-                            Edit
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={(e: any) => {
-                            e.stopPropagation?.();
-                            toggleStatus(customer);
-                          }}
-                          style={{
-                            flex: 1,
-                            backgroundColor: "rgba(255,255,255,0.08)",
-                            borderRadius: 10,
-                            paddingVertical: 10,
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text className="text-text font-inter-bold">
-                            {isActive ? "Set Inactive" : "Set Active"}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={(e: any) => {
-                            e.stopPropagation?.();
-                            handleDelete(customer.id);
-                          }}
-                          style={{
-                            flex: 1,
-                            backgroundColor: "rgba(239,68,68,0.15)",
-                            borderRadius: 10,
-                            paddingVertical: 10,
-                            alignItems: "center",
-                          }}
-                        >
+                          Linked Invoices ({customerInvoices.length})
+                        </Text>
+
+                        {customerInvoices.length === 0 ? (
                           <Text
-                            style={{ color: "#ef4444" }}
-                            className="font-inter-bold"
+                            className="text-text-muted font-inter"
+                            style={{ fontSize: 12, marginBottom: 10 }}
                           >
-                            Delete
+                            No invoices found for this customer yet.
                           </Text>
-                        </TouchableOpacity>
+                        ) : (
+                          <ScrollView
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator={false}
+                            style={{ maxHeight: 170, marginBottom: 10 }}
+                          >
+                            {customerInvoices.map((invoice) => (
+                              <View
+                                key={`${customer.id}-${invoice.id}`}
+                                className="flex-row items-center justify-between"
+                                style={{
+                                  paddingVertical: 8,
+                                  borderBottomWidth: 1,
+                                  borderBottomColor: "rgba(255,255,255,0.06)",
+                                }}
+                              >
+                                <View style={{ flex: 1, paddingRight: 10 }}>
+                                  <Text
+                                    className="text-text font-inter-bold"
+                                    style={{ fontSize: 12 }}
+                                    numberOfLines={1}
+                                  >
+                                    {invoice.invoiceNumber ?? "Invoice"} ·{" "}
+                                    {invoice.date ?? "-"}
+                                  </Text>
+                                  <Text
+                                    className="text-text-muted font-inter"
+                                    style={{ fontSize: 11 }}
+                                    numberOfLines={1}
+                                  >
+                                    {(invoice.type ?? "sales").toUpperCase()} ·{" "}
+                                    {(
+                                      invoice.status ?? "pending"
+                                    ).toUpperCase()}
+                                  </Text>
+                                </View>
+                                <Text
+                                  className="font-inter-bold"
+                                  style={{ color: "#60a5fa", fontSize: 12 }}
+                                >
+                                  {formatPKR(invoice.amount)}
+                                </Text>
+                              </View>
+                            ))}
+                          </ScrollView>
+                        )}
+
+                        <View className="flex-row gap-3">
+                          <TouchableOpacity
+                            onPress={(e: any) => {
+                              e.stopPropagation?.();
+                              startEdit(customer);
+                            }}
+                            style={{
+                              flex: 1,
+                              backgroundColor: "rgba(255,255,255,0.08)",
+                              borderRadius: 10,
+                              paddingVertical: 10,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text className="text-text font-inter-bold">
+                              Edit
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={(e: any) => {
+                              e.stopPropagation?.();
+                              toggleStatus(customer);
+                            }}
+                            style={{
+                              flex: 1,
+                              backgroundColor: "rgba(255,255,255,0.08)",
+                              borderRadius: 10,
+                              paddingVertical: 10,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text className="text-text font-inter-bold">
+                              {isActive ? "Set Inactive" : "Set Active"}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={(e: any) => {
+                              e.stopPropagation?.();
+                              handleDelete(customer.id);
+                            }}
+                            style={{
+                              flex: 1,
+                              backgroundColor: "rgba(239,68,68,0.15)",
+                              borderRadius: 10,
+                              paddingVertical: 10,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text
+                              style={{ color: "#ef4444" }}
+                              className="font-inter-bold"
+                            >
+                              Delete
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     )}
                   </View>
