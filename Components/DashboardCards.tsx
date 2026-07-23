@@ -23,6 +23,14 @@ const formatPKR = (amount: number | null | undefined) => {
   return `Rs. ${formattedInt}`;
 };
 
+const getPKRParts = (amount: number | null | undefined) => {
+  const formatted = formatPKR(amount);
+  return {
+    currency: "Rs.",
+    value: formatted.replace(/^Rs\.\s*/, ""),
+  };
+};
+
 const DashboardCards = () => {
   const [orgId, setOrgId] = useState<string>("");
   const [todayRevenue, setTodayRevenue] = useState<number>(0);
@@ -30,6 +38,9 @@ const DashboardCards = () => {
   const [monthlyRevenue, setMonthlyRevenue] = useState<number>(0);
   const [pendingInvoices, setPendingInvoices] = useState<number>(0);
   const [totalProducts, setTotalProducts] = useState<number>(0);
+
+  const todayRevenueParts = getPKRParts(todayRevenue);
+  const monthlyRevenueParts = getPKRParts(monthlyRevenue);
 
   // Step 1: get the current user's orgId
   useEffect(() => {
@@ -146,12 +157,24 @@ const DashboardCards = () => {
             </View>
           </View>
           <View className="home-balance-row">
-            <Text
-              style={{ fontSize: Spacing[4.5] }}
-              className="home-balance-amount"
-            >
-              {formatPKR(todayRevenue)}
-            </Text>
+            <View className="flex-row items-end">
+              <Text
+                style={{
+                  fontSize: Spacing[2.5],
+                  marginRight: 4,
+                  lineHeight: 14,
+                }}
+                className="home-balance-amount"
+              >
+                {todayRevenueParts.currency}
+              </Text>
+              <Text
+                style={{ fontSize: Spacing[4.5], lineHeight: 22 }}
+                className="home-balance-amount"
+              >
+                {todayRevenueParts.value}
+              </Text>
+            </View>
           </View>
           <View>
             <Text className="text-text-muted">Today's Revenue</Text>
@@ -168,12 +191,7 @@ const DashboardCards = () => {
             </View>
             <View className="flex-row justify-between items-center w-full">
               <View className="ml-3 flex-row items-center">
-                <View className="mr-2 p-3">
-                  <ChangeIndicator
-                    today={todayRevenue}
-                    yesterday={yesterdayRevenue}
-                  />
-                </View>
+                <View className="mr-2 p-3"></View>
               </View>
             </View>
           </View>
@@ -198,14 +216,7 @@ const DashboardCards = () => {
               <Products color={Colors.blue} />
             </View>
             <View className="flex-row justify-between items-center w-full">
-              <View className="ml-3 flex-row items-center">
-                <View className="mr-2 p-3">
-                  <ChangeIndicator
-                    today={todayRevenue}
-                    yesterday={yesterdayRevenue}
-                  />
-                </View>
-              </View>
+              <View className="ml-3 flex-row items-center"></View>
             </View>
           </View>
           <View className="home-balance-row">
@@ -230,23 +241,28 @@ const DashboardCards = () => {
               <TrendUp color={Colors.purple} />
             </View>
             <View className="flex-row justify-between items-center w-full">
-              <View className="ml-3 flex-row items-center">
-                <View className="mr-2 p-3">
-                  <ChangeIndicator
-                    today={todayRevenue}
-                    yesterday={yesterdayRevenue}
-                  />
-                </View>
-              </View>
+              <View className="ml-3 flex-row items-center"></View>
             </View>
           </View>
           <View className="home-balance-row">
-            <Text
-              style={{ fontSize: Spacing[4.5] }}
-              className="home-balance-amount"
-            >
-              {formatPKR(monthlyRevenue)}
-            </Text>
+            <View className="flex-row items-end">
+              <Text
+                style={{
+                  fontSize: Spacing[2.5],
+                  marginRight: 4,
+                  lineHeight: 14,
+                }}
+                className="home-balance-amount"
+              >
+                {monthlyRevenueParts.currency}
+              </Text>
+              <Text
+                style={{ fontSize: Spacing[4.5], lineHeight: 22 }}
+                className="home-balance-amount"
+              >
+                {monthlyRevenueParts.value}
+              </Text>
+            </View>
           </View>
           <View>
             <Text className="text-text-muted">Monthly Revenue</Text>

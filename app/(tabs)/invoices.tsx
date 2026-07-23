@@ -35,6 +35,7 @@ const MoreIcon = icons.moreVertical ?? icons.more;
 const SafeAreaView = styled(RNSafeAreaView);
 
 type InvoiceStatus = "paid" | "pending" | "overdue" | "draft" | "partial";
+type InvoiceType = "sales" | "purchase";
 
 type InvoiceItem = {
   query: string; // whatever the user typed (SKU or name)
@@ -54,6 +55,9 @@ type Invoice = {
   amount: number;
   amountPaid?: number;
   status: InvoiceStatus;
+  type?: InvoiceType;
+  customerId?: string;
+  customerName?: string;
   items?: InvoiceItem[];
 };
 
@@ -63,6 +67,11 @@ type Product = {
   name?: string;
   price?: number | string | null;
   stock?: number | string | null;
+};
+
+type Customer = {
+  id: string;
+  name: string;
 };
 
 type InvoiceItemDraft = {
@@ -133,6 +142,14 @@ const formatPKR = (amount: number | null | undefined) => {
   return `Rs. ${isNegative ? "-" : ""}${formattedInt}.${decPart}`;
 };
 
+const getPKRParts = (amount: number | null | undefined) => {
+  const formatted = formatPKR(amount);
+  return {
+    currency: "Rs.",
+    value: formatted.replace(/^Rs\.\s*/, ""),
+  };
+};
+
 const normalize = (s: string) => s.trim().toLowerCase();
 
 const findProductMatch = (products: Product[], q: string) => {
@@ -152,6 +169,9 @@ const getAmountPaid = (invoice: Invoice) =>
 const getBalanceDue = (invoice: Invoice) =>
   Math.max(0, invoice.amount - getAmountPaid(invoice));
 
+const getSignedAmount = (invoice: Invoice, amount: number) =>
+  invoice.type === "purchase" ? -Math.abs(amount) : Math.abs(amount);
+
 let draftIdCounter = 1;
 const nextDraftId = () => String(draftIdCounter++);
 
@@ -161,6 +181,7 @@ const InvoicesScreen = () => {
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -168,6 +189,7 @@ const InvoicesScreen = () => {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [purchaseModalVisible, setPurchaseModalVisible] = useState(false);
   const [savingAdd, setSavingAdd] = useState(false);
   const [newInvoice, setNewInvoice] = useState({
     client: "",
@@ -178,6 +200,13 @@ const InvoicesScreen = () => {
   const [itemDrafts, setItemDrafts] = useState<InvoiceItemDraft[]>([
     { id: nextDraftId(), queryText: "", quantity: "1" },
   ]);
+  const [newPurchaseInvoice, setNewPurchaseInvoice] = useState({
+    vendor: "",
+    invoiceNumber: "",
+    date: "",
+    amount: "",
+    status: "pending" as InvoiceStatus,
+  });
 
   // Partial payment modal
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
@@ -257,6 +286,26 @@ const InvoicesScreen = () => {
     return () => unsubscribe();
   }, [orgId]);
 
+  // Real-time customers listener used to attach invoices to known customers.
+  React.useEffect(() => {
+    if (!orgId) return;
+    const q = query(collection(db, "customers"), where("orgId", "==", orgId));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Customer, "id">),
+        }));
+        setCustomers(data);
+      },
+      (error) => {
+        console.error("Customers listener error (invoices screen):", error);
+      },
+    );
+    return () => unsubscribe();
+  }, [orgId]);
+
   const filteredInvoices = useMemo(() => {
     let list = invoices;
     if (activeTab !== "all") {
@@ -279,16 +328,23 @@ const InvoicesScreen = () => {
     const totalDue = invoices
       .filter(
         (inv) =>
-          inv.status === "pending" ||
-          inv.status === "overdue" ||
-          inv.status === "partial",
+          (inv.type ?? "sales") !== "purchase" &&
+          (inv.status === "pending" ||
+            inv.status === "overdue" ||
+            inv.status === "partial"),
       )
       .reduce((sum, inv) => sum + getBalanceDue(inv), 0);
     const overdue = invoices
-      .filter((inv) => inv.status === "overdue")
+      .filter(
+        (inv) =>
+          (inv.type ?? "sales") === "purchase" &&
+          (inv.status === "pending" ||
+            inv.status === "overdue" ||
+            inv.status === "partial"),
+      )
       .reduce((sum, inv) => sum + getBalanceDue(inv), 0);
     const collected = invoices.reduce(
-      (sum, inv) => sum + getAmountPaid(inv),
+      (sum, inv) => sum + getSignedAmount(inv, getAmountPaid(inv)),
       0,
     );
     return { totalDue, overdue, collected };
@@ -322,6 +378,41 @@ const InvoicesScreen = () => {
       status: "pending",
     });
     setItemDrafts([{ id: nextDraftId(), queryText: "", quantity: "1" }]);
+  };
+
+  const resetPurchaseModal = () => {
+    setNewPurchaseInvoice({
+      vendor: "",
+      invoiceNumber: "",
+      date: "",
+      amount: "",
+      status: "pending",
+    });
+  };
+
+  const openNewInvoicePicker = () => {
+    Alert.alert("New Invoice", "Choose invoice type", [
+      {
+        text: "Sales Invoice",
+        onPress: () => setAddModalVisible(true),
+      },
+      {
+        text: "Purchase Invoice",
+        onPress: () => setPurchaseModalVisible(true),
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const resolveCustomerLink = (clientName: string) => {
+    const normalizedClient = normalize(clientName);
+    const matched = customers.find(
+      (c) => normalize(c.name) === normalizedClient,
+    );
+    return {
+      customerId: matched?.id,
+      customerName: matched?.name,
+    };
   };
 
   // Resolves each drafted row against the products collection:
@@ -420,6 +511,10 @@ const InvoicesScreen = () => {
     setSavingAdd(true);
     try {
       const { items, total } = await processInvoiceItems(itemDrafts);
+      const normalizedStatus: InvoiceStatus =
+        newInvoice.status === "paid" ? "paid" : newInvoice.status;
+      const initialAmountPaid = normalizedStatus === "paid" ? total : 0;
+      const customerLink = resolveCustomerLink(newInvoice.client.trim());
 
       await addDoc(collection(db, "invoices"), {
         orgId,
@@ -427,17 +522,96 @@ const InvoicesScreen = () => {
         invoiceNumber: newInvoice.invoiceNumber.trim(),
         date: newInvoice.date.trim() || new Date().toISOString().slice(0, 10),
         amount: total,
-        amountPaid: 0,
-        status: newInvoice.status,
+        amountPaid: initialAmountPaid,
+        status: normalizedStatus,
+        type: "sales",
+        customerId: customerLink.customerId ?? null,
+        customerName: customerLink.customerName ?? null,
         items,
         createdAt: Date.now(),
       });
+
+      // Paid-at-creation sales invoices must immediately affect revenue metrics.
+      if (normalizedStatus === "paid" && total > 0) {
+        await addDoc(collection(db, "sales"), {
+          orgId,
+          amount: Math.abs(total),
+          client: newInvoice.client.trim(),
+          invoiceNumber: newInvoice.invoiceNumber.trim(),
+          type: "invoice_payment",
+          createdAt: Date.now(),
+        });
+      }
 
       resetAddModal();
       setAddModalVisible(false);
     } catch (error) {
       console.error("Error adding invoice:", error);
       Alert.alert("Error", "Could not add invoice. Please try again.");
+    } finally {
+      setSavingAdd(false);
+    }
+  };
+
+  const handleAddPurchaseInvoice = async () => {
+    if (
+      !newPurchaseInvoice.vendor.trim() ||
+      !newPurchaseInvoice.invoiceNumber.trim() ||
+      !newPurchaseInvoice.amount.trim()
+    ) {
+      Alert.alert(
+        "Missing info",
+        "Vendor, invoice number, and amount are required.",
+      );
+      return;
+    }
+
+    const parsedAmount = parseFloat(newPurchaseInvoice.amount);
+    if (!parsedAmount || parsedAmount <= 0) {
+      Alert.alert("Invalid amount", "Enter a valid amount greater than zero.");
+      return;
+    }
+
+    setSavingAdd(true);
+    try {
+      const normalizedStatus: InvoiceStatus =
+        newPurchaseInvoice.status === "paid"
+          ? "paid"
+          : newPurchaseInvoice.status;
+      const initialAmountPaid = normalizedStatus === "paid" ? parsedAmount : 0;
+
+      await addDoc(collection(db, "invoices"), {
+        orgId,
+        client: newPurchaseInvoice.vendor.trim(),
+        invoiceNumber: newPurchaseInvoice.invoiceNumber.trim(),
+        date:
+          newPurchaseInvoice.date.trim() ||
+          new Date().toISOString().slice(0, 10),
+        amount: parsedAmount,
+        amountPaid: initialAmountPaid,
+        status: normalizedStatus,
+        type: "purchase",
+        items: [],
+        createdAt: Date.now(),
+      });
+
+      // Paid purchase invoices are expenses and should reduce net revenue.
+      if (normalizedStatus === "paid" && parsedAmount > 0) {
+        await addDoc(collection(db, "sales"), {
+          orgId,
+          amount: -Math.abs(parsedAmount),
+          client: newPurchaseInvoice.vendor.trim(),
+          invoiceNumber: newPurchaseInvoice.invoiceNumber.trim(),
+          type: "purchase_payment",
+          createdAt: Date.now(),
+        });
+      }
+
+      resetPurchaseModal();
+      setPurchaseModalVisible(false);
+    } catch (error) {
+      console.error("Error adding purchase invoice:", error);
+      Alert.alert("Error", "Could not add purchase invoice. Please try again.");
     } finally {
       setSavingAdd(false);
     }
@@ -461,6 +635,7 @@ const InvoicesScreen = () => {
 
     setSavingEdit(true);
     try {
+      const customerLink = resolveCustomerLink(editDraft.client.trim());
       await updateDoc(doc(db, "invoices", id), {
         client: editDraft.client.trim(),
         invoiceNumber: editDraft.invoiceNumber.trim(),
@@ -470,6 +645,8 @@ const InvoicesScreen = () => {
             ? parseFloat(editDraft.amount as unknown as string) || 0
             : editDraft.amount,
         status: editDraft.status,
+        customerId: customerLink.customerId ?? null,
+        customerName: customerLink.customerName ?? null,
       });
       setEditId(null);
       setEditDraft({});
@@ -510,11 +687,12 @@ const InvoicesScreen = () => {
       });
       await addDoc(collection(db, "sales"), {
         orgId,
-        amount: balance,
+        amount: getSignedAmount(invoice, balance),
         invoiceId: invoice.id,
         client: invoice.client,
         invoiceNumber: invoice.invoiceNumber,
-        type: "invoice_payment",
+        type:
+          invoice.type === "purchase" ? "purchase_payment" : "invoice_payment",
         createdAt: Date.now(),
       });
     } catch (error) {
@@ -573,11 +751,14 @@ const InvoicesScreen = () => {
 
       await addDoc(collection(db, "sales"), {
         orgId,
-        amount: payment,
+        amount: getSignedAmount(paymentInvoice, payment),
         invoiceId: paymentInvoice.id,
         client: paymentInvoice.client,
         invoiceNumber: paymentInvoice.invoiceNumber,
-        type: "invoice_payment",
+        type:
+          paymentInvoice.type === "purchase"
+            ? "purchase_payment"
+            : "invoice_payment",
         createdAt: Date.now(),
       });
 
@@ -615,6 +796,10 @@ const InvoicesScreen = () => {
     }
   };
 
+  const totalDueParts = getPKRParts(stats.totalDue);
+  const overdueParts = getPKRParts(stats.overdue);
+  const collectedParts = getPKRParts(stats.collected);
+
   return (
     <SafeAreaView className="flex-1 bg-background p-5">
       {/* Header */}
@@ -630,7 +815,7 @@ const InvoicesScreen = () => {
           </View>
           <View className="ml-3 flex-row items-center">
             <TouchableOpacity
-              onPress={() => setAddModalVisible(true)}
+              onPress={openNewInvoicePicker}
               style={{
                 borderRadius: 12,
                 paddingHorizontal: 25,
@@ -671,12 +856,24 @@ const InvoicesScreen = () => {
         <View className="flex-row gap-3">
           <View className="home-balance-card">
             <View className="items-center">
-              <Text
-                style={{ fontSize: Spacing[5] }}
-                className="text-yellow-300 font-inter-bold"
-              >
-                {formatPKR(stats.totalDue)}
-              </Text>
+              <View className="flex-row items-end">
+                <Text
+                  style={{
+                    fontSize: Spacing[3],
+                    lineHeight: 16,
+                    marginRight: 4,
+                  }}
+                  className="text-yellow-300 font-inter-bold"
+                >
+                  {totalDueParts.currency}
+                </Text>
+                <Text
+                  style={{ fontSize: Spacing[4.5], lineHeight: 24 }}
+                  className="text-yellow-300 font-inter-bold"
+                >
+                  {totalDueParts.value}
+                </Text>
+              </View>
               <Text
                 style={{ fontSize: Spacing[3] }}
                 className="text-text-muted"
@@ -687,28 +884,51 @@ const InvoicesScreen = () => {
           </View>
           <View className="home-balance-card">
             <View className="items-center">
-              <Text
-                style={{ fontSize: Spacing[5] }}
-                className="font-inter-bold text-red-800"
-              >
-                {formatPKR(stats.overdue)}
-              </Text>
+              <View className="items-center">
+                <Text
+                  style={{
+                    fontSize: Spacing[3],
+                    lineHeight: 16,
+                  }}
+                  className="font-inter-bold text-red-800"
+                >
+                  {overdueParts.currency}
+                </Text>
+                <Text
+                  style={{ fontSize: Spacing[4.5], lineHeight: 24 }}
+                  className="font-inter-bold text-red-800"
+                >
+                  {overdueParts.value}
+                </Text>
+              </View>
               <Text
                 style={{ fontSize: Spacing[3] }}
                 className="text-text-muted"
               >
-                Overdue
+                Purchase Due
               </Text>
             </View>
           </View>
           <View className="home-balance-card">
             <View className="items-center">
-              <Text
-                style={{ fontSize: Spacing[5] }}
-                className="font-inter-bold text-green-400"
-              >
-                {formatPKR(stats.collected)}
-              </Text>
+              <View className="flex-row items-end">
+                <Text
+                  style={{
+                    fontSize: Spacing[3],
+                    lineHeight: 16,
+                    marginRight: 4,
+                  }}
+                  className="font-inter-bold text-green-400"
+                >
+                  {collectedParts.currency}
+                </Text>
+                <Text
+                  style={{ fontSize: Spacing[4.5], lineHeight: 24 }}
+                  className="font-inter-bold text-green-400"
+                >
+                  {collectedParts.value}
+                </Text>
+              </View>
               <Text
                 style={{ fontSize: Spacing[3] }}
                 className="text-text-muted"
@@ -814,7 +1034,8 @@ const InvoicesScreen = () => {
                       className="text-text-muted font-inter"
                       style={{ fontSize: Spacing[3] }}
                     >
-                      {invoice.invoiceNumber} · {invoice.date}
+                      {invoice.invoiceNumber} · {invoice.date} ·{" "}
+                      {(invoice.type ?? "sales").toUpperCase()}
                     </Text>
                   </View>
 
@@ -1373,6 +1594,146 @@ const InvoicesScreen = () => {
                 </TouchableOpacity>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* New Purchase Invoice Modal */}
+      <Modal visible={purchaseModalVisible} animationType="slide" transparent>
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "flex-end",
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: Colors.background ?? "#111",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              padding: 20,
+            }}
+          >
+            <Text
+              className="text-text font-inter-bold"
+              style={{ fontSize: Spacing[5], marginBottom: 12 }}
+            >
+              New Purchase Invoice
+            </Text>
+
+            <TextInput
+              value={newPurchaseInvoice.vendor}
+              onChangeText={(t) =>
+                setNewPurchaseInvoice((p) => ({ ...p, vendor: t }))
+              }
+              placeholder="Vendor name"
+              placeholderTextColor={Colors.textMuted}
+              style={editInputStyle}
+            />
+            <TextInput
+              value={newPurchaseInvoice.invoiceNumber}
+              onChangeText={(t) =>
+                setNewPurchaseInvoice((p) => ({ ...p, invoiceNumber: t }))
+              }
+              placeholder="Purchase invoice number"
+              placeholderTextColor={Colors.textMuted}
+              style={editInputStyle}
+            />
+            <TextInput
+              value={newPurchaseInvoice.date}
+              onChangeText={(t) =>
+                setNewPurchaseInvoice((p) => ({ ...p, date: t }))
+              }
+              placeholder="Date (e.g. Jul 20, 2024)"
+              placeholderTextColor={Colors.textMuted}
+              style={editInputStyle}
+            />
+            <TextInput
+              value={newPurchaseInvoice.amount}
+              onChangeText={(t) =>
+                setNewPurchaseInvoice((p) => ({ ...p, amount: t }))
+              }
+              placeholder="Amount"
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="decimal-pad"
+              style={editInputStyle}
+            />
+
+            <View className="flex-row flex-wrap gap-2 mb-3">
+              {(["pending", "paid"] as InvoiceStatus[]).map((statusKey) => {
+                const active = newPurchaseInvoice.status === statusKey;
+                const chipMeta = STATUS_META[statusKey];
+                return (
+                  <TouchableOpacity
+                    key={statusKey}
+                    onPress={() =>
+                      setNewPurchaseInvoice((p) => ({
+                        ...p,
+                        status: statusKey,
+                      }))
+                    }
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 20,
+                      backgroundColor: active
+                        ? chipMeta.bg
+                        : "rgba(255,255,255,0.05)",
+                      borderWidth: 1,
+                      borderColor: active
+                        ? chipMeta.color
+                        : "rgba(255,255,255,0.1)",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? chipMeta.color : Colors.textMuted,
+                        fontSize: 12,
+                        fontWeight: "600",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {statusKey}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View className="flex-row gap-3 mt-1">
+              <TouchableOpacity
+                disabled={savingAdd}
+                onPress={handleAddPurchaseInvoice}
+                style={{
+                  flex: 1,
+                  backgroundColor: Colors.primary ?? "#4b7c59",
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                  opacity: savingAdd ? 0.6 : 1,
+                }}
+              >
+                <Text className="text-text font-inter-bold">
+                  {savingAdd ? "Creating..." : "Create Purchase Invoice"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  resetPurchaseModal();
+                  setPurchaseModalVisible(false);
+                }}
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                }}
+              >
+                <Text className="text-text font-inter">Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
