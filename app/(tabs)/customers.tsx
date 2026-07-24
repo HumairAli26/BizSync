@@ -2,6 +2,11 @@ import { auth, db } from "@/config/firebaseConfig";
 import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
 import {
+  sanitizeEmail,
+  validateGoogleEmail,
+  validateRequiredText,
+} from "@/lib/validation";
+import {
   addDoc,
   collection,
   deleteDoc,
@@ -221,8 +226,17 @@ const Customers = () => {
   }, [customers, search]);
 
   const handleAddCustomer = async () => {
-    if (!newCustomer.name.trim()) {
+    const normalizedEmail = sanitizeEmail(newCustomer.email);
+
+    if (!validateRequiredText(newCustomer.name)) {
       Alert.alert("Missing info", "Customer name is required.");
+      return;
+    }
+    if (normalizedEmail && !validateGoogleEmail(normalizedEmail)) {
+      Alert.alert(
+        "Invalid email",
+        "Enter a valid Google email address such as name@gmail.com.",
+      );
       return;
     }
 
@@ -231,7 +245,7 @@ const Customers = () => {
       await addDoc(collection(db, "customers"), {
         orgId,
         name: newCustomer.name.trim(),
-        email: newCustomer.email.trim(),
+        email: normalizedEmail,
         status: "active",
         createdAt: Date.now(),
       });
@@ -256,16 +270,26 @@ const Customers = () => {
   };
 
   const saveEdit = async (id: string) => {
-    if (!editDraft.name?.trim()) {
+    const draftName = editDraft.name ?? "";
+    const normalizedEmail = sanitizeEmail(editDraft.email ?? "");
+
+    if (!validateRequiredText(draftName)) {
       Alert.alert("Missing info", "Customer name is required.");
+      return;
+    }
+    if (normalizedEmail && !validateGoogleEmail(normalizedEmail)) {
+      Alert.alert(
+        "Invalid email",
+        "Enter a valid Google email address such as name@gmail.com.",
+      );
       return;
     }
 
     setSavingEdit(true);
     try {
       await updateDoc(doc(db, "customers", id), {
-        name: editDraft.name.trim(),
-        email: editDraft.email?.trim() ?? "",
+        name: draftName.trim(),
+        email: normalizedEmail,
         status: editDraft.status ?? "active",
       });
       setEditId(null);
@@ -353,6 +377,7 @@ const Customers = () => {
           placeholderTextColor={Colors.textMuted}
           value={search}
           onChangeText={setSearch}
+          autoCorrect={false}
           style={{
             flex: 1,
             fontSize: Spacing[4],
@@ -541,6 +566,7 @@ const Customers = () => {
                           }
                           placeholder="Customer name"
                           placeholderTextColor={Colors.textMuted}
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
                         <TextInput
@@ -552,6 +578,7 @@ const Customers = () => {
                           placeholderTextColor={Colors.textMuted}
                           keyboardType="email-address"
                           autoCapitalize="none"
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
 
@@ -796,6 +823,7 @@ const Customers = () => {
               onChangeText={(t) => setNewCustomer((p) => ({ ...p, name: t }))}
               placeholder="Customer name"
               placeholderTextColor={Colors.textMuted}
+              autoCorrect={false}
               style={editInputStyle}
             />
             <TextInput
@@ -805,6 +833,7 @@ const Customers = () => {
               placeholderTextColor={Colors.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
               style={editInputStyle}
             />
 

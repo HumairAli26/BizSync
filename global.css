@@ -141,8 +141,20 @@
     @apply border-border;
   }
 
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   body {
     @apply bg-background text-text;
+  }
+
+  @media (min-width: 900px) {
+    body {
+      overflow: hidden;
+    }
   }
 }
 
@@ -381,7 +393,7 @@
   }
 
   .transactions-title {
-    @apply font-inter-bold text-text mt-4 mb-4;
+    @apply mt-4 mb-4 text-2xl font-inter-bold text-text;
   }
 
   .transactions-action {
@@ -389,11 +401,11 @@
   }
 
   .transactions-card {
-    @apply rounded-3xl border border-border-light bg-background p-5;
+    @apply rounded-3xl border border-border-light bg-background p-6;
   }
 
   .transaction-item {
-    @apply flex-row items-center py-4;
+    @apply flex-row items-center py-5;
   }
 
   .transaction-divider {
@@ -401,7 +413,7 @@
   }
 
   .transaction-icon {
-    @apply size-14 items-center justify-center rounded-2xl;
+    @apply size-16 items-center justify-center rounded-2xl;
   }
 
   .transaction-icon-income {
@@ -417,15 +429,15 @@
   }
 
   .transaction-name {
-    @apply text-lg font-inter-bold text-text;
+    @apply text-xl font-inter-bold text-text;
   }
 
   .transaction-meta {
-    @apply mt-1 text-sm font-inter-medium text-text-secondary;
+    @apply mt-1 text-base font-inter-medium text-text-secondary;
   }
 
   .transaction-amount {
-    @apply text-xl font-inter-bold;
+    @apply text-2xl font-inter-bold;
   }
 
   .transaction-amount-income {
@@ -447,7 +459,7 @@
   }
 
   .products-title {
-    @apply font-inter-bold text-text mt-4 mb-4;
+    @apply mt-4 mb-4 text-2xl font-inter-bold text-text;
   }
 
   .products-action {
@@ -455,15 +467,15 @@
   }
 
   .product-card {
-    @apply mb-4 flex-row items-center rounded-3xl border border-border-light bg-background p-5;
+    @apply mb-4 flex-row items-center rounded-3xl border border-border-light bg-background p-6;
   }
 
   .product-rank {
-    @apply w-10 text-xl font-inter-bold text-text-secondary;
+    @apply w-12 text-2xl font-inter-bold text-text-secondary;
   }
 
   .product-icon {
-    @apply size-14 items-center justify-center rounded-2xl bg-surface;
+    @apply size-16 items-center justify-center rounded-2xl bg-surface;
   }
 
   .product-content {
@@ -471,11 +483,11 @@
   }
 
   .product-name {
-    @apply text-lg font-inter-bold text-text;
+    @apply text-xl font-inter-bold text-text;
   }
 
   .product-category {
-    @apply mt-1 text-sm font-inter-medium text-text-secondary;
+    @apply mt-1 text-base font-inter-medium text-text-secondary;
   }
 
   .product-right {
@@ -483,7 +495,7 @@
   }
 
   .product-price {
-    @apply text-xl font-inter-bold text-text;
+    @apply text-2xl font-inter-bold text-text;
   }
 
   .product-badge {
@@ -503,7 +515,7 @@
   }
 
   .product-badge-text {
-    @apply text-sm font-inter-semibold;
+    @apply text-base font-inter-semibold;
   }
 
   .product-badge-text-success {

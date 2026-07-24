@@ -11,8 +11,8 @@ export function formatCurrency(
 
     const normalizedCurrency = (currency || "PKR").toUpperCase();
     const formatter = new Intl.NumberFormat("en-IN", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     });
     const formattedValue = formatter.format(numericValue);
 
@@ -29,8 +29,8 @@ export function formatCurrency(
     const fallbackValue = typeof value === "number" ? value : Number(value);
     const safeValue = Number.isFinite(fallbackValue) ? fallbackValue : 0;
     const formatter = new Intl.NumberFormat("en-IN", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     });
     const formattedFallback = formatter.format(safeValue);
 

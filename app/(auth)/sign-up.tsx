@@ -1,4 +1,10 @@
 import { auth, db } from "@/config/firebaseConfig";
+import {
+  sanitizeEmail,
+  validateGoogleEmail,
+  validatePassword,
+  validateRequiredText,
+} from "@/lib/validation";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
@@ -32,8 +38,29 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState<boolean>(false);
 
   const handleSignUp = async (): Promise<void> => {
-    if (!name || !orgName || !email || !password) {
+    const normalizedEmail = sanitizeEmail(email);
+
+    if (
+      !validateRequiredText(name) ||
+      !validateRequiredText(orgName) ||
+      !normalizedEmail ||
+      !password
+    ) {
       Alert.alert("Missing fields", "Please fill in everything.");
+      return;
+    }
+    if (!validateGoogleEmail(normalizedEmail)) {
+      Alert.alert(
+        "Invalid email",
+        "Enter a valid Google email address such as name@gmail.com.",
+      );
+      return;
+    }
+    if (!validatePassword(password)) {
+      Alert.alert(
+        "Weak password",
+        "Password must be at least 8 characters and include both letters and numbers.",
+      );
       return;
     }
     setLoading(true);
@@ -43,7 +70,7 @@ export default function SignUpScreen() {
     try {
       const cred = await createUserWithEmailAndPassword(
         auth,
-        email.trim(),
+        normalizedEmail,
         password,
       );
       createdUser = cred.user;
@@ -59,7 +86,7 @@ export default function SignUpScreen() {
 
       await setDoc(doc(db, "users", cred.user.uid), {
         name,
-        email: email.trim(),
+        email: normalizedEmail,
         orgId: orgRef.id,
         orgName,
         orgCode,
@@ -147,6 +174,7 @@ export default function SignUpScreen() {
           placeholderTextColor="#666"
           autoCapitalize="none"
           keyboardType="email-address"
+          autoCorrect={false}
           value={email}
           onChangeText={setEmail}
         />
@@ -167,6 +195,8 @@ export default function SignUpScreen() {
           secureTextEntry={!showPassword}
           value={password}
           onChangeText={setPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
           <Ionicons

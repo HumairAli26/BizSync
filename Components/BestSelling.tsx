@@ -148,44 +148,57 @@ const BestSelling = () => {
   }
 
   return (
-    <View>
+    <View style={{ gap: 14 }}>
       {bestSelling.map((item, index) => {
         const status =
           typeof item.stock === "number" ? getStatus(item.stock) : null;
         return (
-          <View key={item.key} className="product-card">
-            <View className="flex-row items-center justify-between w-full">
+          <View
+            key={item.key}
+            className="product-card"
+            style={{ minHeight: 96 }}
+          >
+            <View
+              className="flex-row items-center justify-between w-full"
+              style={{ gap: 16 }}
+            >
               <View className="flex-row items-center" style={{ flex: 1 }}>
                 <View
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
+                    width: 52,
+                    height: 52,
+                    borderRadius: 14,
                     backgroundColor: "rgba(255,255,255,0.05)",
                     alignItems: "center",
                     justifyContent: "center",
-                    marginRight: 12,
+                    marginRight: 14,
                   }}
                 >
-                  <Text className="text-text-muted font-inter-bold">
+                  <Text
+                    className="text-text-muted font-inter-bold"
+                    style={{ fontSize: 16 }}
+                  >
                     #{index + 1}
                   </Text>
                 </View>
                 <View>
                   <Text
                     className="text-text font-inter-bold"
-                    style={{ fontSize: Spacing[4] }}
+                    style={{ fontSize: Spacing[5] }}
                   >
                     {item.name}
                   </Text>
-                  <Text className="text-text-muted" style={{ fontSize: 12 }}>
+                  <Text className="text-text-muted" style={{ fontSize: 13 }}>
                     {item.category ?? `${item.qty} sold`}
                   </Text>
                 </View>
               </View>
               <View style={{ alignItems: "flex-end" }}>
                 {item.price !== undefined && (
-                  <Text className="text-text font-inter-bold">
+                  <Text
+                    className="text-text font-inter-bold"
+                    style={{ fontSize: 18 }}
+                  >
                     {formatPKR(item.price)}
                   </Text>
                 )}
@@ -202,7 +215,7 @@ const BestSelling = () => {
                     <Text
                       style={{
                         color: status.color,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: "600",
                       }}
                     >
