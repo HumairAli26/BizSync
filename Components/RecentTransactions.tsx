@@ -11,7 +11,9 @@ import {
     where,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Text, useWindowDimensions, View } from "react-native";
+
+const DESKTOP_BREAKPOINT = 900;
 
 const MoveUPRight = icons.moveupright;
 const MoveDownRight = icons.movedownright;
@@ -59,6 +61,8 @@ const RecentTransactions = ({
   seeAllHref = "/transactions",
 }: RecentTransactionsProps) => {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= DESKTOP_BREAKPOINT;
   const [orgId, setOrgId] = useState<string>("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,28 +125,14 @@ const RecentTransactions = ({
   return (
     <View
       className="rounded-3xl border border-border-light bg-background p-3"
-      style={{ height: 300, overflow: "hidden" }}
+      style={{
+        minHeight: 380,
+        height: isDesktop ? 420 : undefined,
+        maxHeight: isDesktop ? 420 : undefined,
+        overflow: "hidden",
+        padding: 20,
+      }}
     >
-      <View
-        className="flex-row items-center justify-between"
-        style={{ paddingHorizontal: 4, paddingBottom: 8 }}
-      >
-        <Text
-          className="text-text font-inter-bold"
-          style={{ fontSize: Spacing[4] }}
-        >
-          Recent Transactions
-        </Text>
-        <TouchableOpacity onPress={() => router.push(seeAllHref as any)}>
-          <Text
-            className="font-inter-bold"
-            style={{ color: Colors.green, fontSize: 13 }}
-          >
-            See All
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {/*
         A plain ScrollView instead of FlatList: this component sits inside a
         parent ScrollView, and nesting a FlatList (VirtualizedList) inside a
@@ -166,20 +156,28 @@ const RecentTransactions = ({
             : "Invoice payment";
 
           return (
-            <View key={t.id}>
-              <View className="flex-row items-center">
+            <View key={t.id} style={{ paddingVertical: 12 }}>
+              <View className="flex-row items-center" style={{ gap: 14 }}>
                 <View
-                  style={{ borderRadius: 12 }}
-                  className={`card-icon ${iconBgClass}`}
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 16,
+                    overflow: "hidden",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: isOutgoing
+                      ? "rgba(245,158,11,0.15)"
+                      : "rgba(34,197,94,0.15)",
+                  }}
                 >
-                  <Icon color={amountColor} />
+                  <Icon color={amountColor} size={20} />
                 </View>
 
-                {/* Price sits immediately after the icon, to the left of the
-                    name/info column below. */}
-                <View className="ml-3" style={{ width: 90, flexShrink: 0 }}>
+                {/* Amount stays on the left, with more breathing room. */}
+                <View style={{ width: 120, flexShrink: 0 }}>
                   <Text
-                    style={{ color: amountColor, fontSize: 13 }}
+                    style={{ color: amountColor, fontSize: 18 }}
                     className="font-inter-bold"
                     numberOfLines={1}
                   >
@@ -187,10 +185,10 @@ const RecentTransactions = ({
                   </Text>
                 </View>
 
-                {/* Name + descriptor column, to the right of the price. */}
+                {/* Name + descriptor column. */}
                 <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
                   <Text
-                    style={{ fontSize: Spacing[4] }}
+                    style={{ fontSize: Spacing[5] }}
                     className="text-text font-inter-bold"
                     numberOfLines={1}
                   >
@@ -198,7 +196,7 @@ const RecentTransactions = ({
                   </Text>
                   <Text
                     className="text-text-muted"
-                    style={{ fontSize: 12 }}
+                    style={{ fontSize: 13 }}
                     numberOfLines={1}
                   >
                     {descriptor} · {timeAgo(t.createdAt)}
@@ -211,7 +209,7 @@ const RecentTransactions = ({
                   style={{
                     height: 1,
                     backgroundColor: "rgba(255,255,255,0.08)",
-                    marginVertical: 10,
+                    marginVertical: 12,
                   }}
                 />
               )}

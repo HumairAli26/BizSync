@@ -1,5 +1,12 @@
 import { auth, db } from "@/config/firebaseConfig";
 import { Colors, Spacing } from "@/constants/theme";
+import {
+  sanitizeEmail,
+  sanitizeOrgCode,
+  validateGoogleEmail,
+  validateOrgCode,
+  validatePassword,
+} from "@/lib/validation";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
@@ -25,25 +32,46 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState<boolean>(false);
 
   const handleSignIn = async (): Promise<void> => {
-    if (!email || !password || !orgCode) {
+    const normalizedEmail = sanitizeEmail(email);
+    const normalizedOrgCode = sanitizeOrgCode(orgCode);
+
+    if (!normalizedEmail || !password || !normalizedOrgCode) {
       Alert.alert("Missing fields", "Please fill in everything.");
+      return;
+    }
+    if (!validateGoogleEmail(normalizedEmail)) {
+      Alert.alert(
+        "Invalid email",
+        "Enter the Google email address used when the account was created.",
+      );
+      return;
+    }
+    if (!validatePassword(password)) {
+      Alert.alert(
+        "Weak password",
+        "Password must be at least 8 characters and include both letters and numbers.",
+      );
+      return;
+    }
+    if (!validateOrgCode(normalizedOrgCode)) {
+      Alert.alert(
+        "Invalid code",
+        "Organization code must be 6 letters/numbers.",
+      );
       return;
     }
     setLoading(true);
     try {
       const cred = await signInWithEmailAndPassword(
         auth,
-        email.trim(),
+        normalizedEmail,
         password,
       );
       const userSnap = await getDoc(doc(db, "users", cred.user.uid));
       const userData = userSnap.data() as
         { orgCode?: string; orgName?: string } | undefined;
 
-      if (
-        !userSnap.exists() ||
-        userData?.orgCode !== orgCode.trim().toUpperCase()
-      ) {
+      if (!userSnap.exists() || userData?.orgCode !== normalizedOrgCode) {
         await signOut(auth);
         Alert.alert("Sign in failed", "Invalid organization code.");
         return;
@@ -81,6 +109,7 @@ export default function SignInScreen() {
           placeholderTextColor="#666"
           autoCapitalize="none"
           keyboardType="email-address"
+          autoCorrect={false}
           value={email}
           onChangeText={setEmail}
         />
@@ -105,6 +134,8 @@ export default function SignInScreen() {
           secureTextEntry={!showPassword}
           value={password}
           onChangeText={setPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
           <Ionicons
@@ -127,8 +158,9 @@ export default function SignInScreen() {
           placeholder="e.g. A7F3K9"
           placeholderTextColor="#666"
           autoCapitalize="characters"
+          autoCorrect={false}
           value={orgCode}
-          onChangeText={setOrgCode}
+          onChangeText={(value) => setOrgCode(value.replace(/\s+/g, ""))}
         />
       </View>
       <TouchableOpacity

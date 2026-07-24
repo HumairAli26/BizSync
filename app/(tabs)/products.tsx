@@ -3,6 +3,11 @@ import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
 import { formatCurrency } from "@/lib/utils";
 import {
+  validateNonNegativeNumber,
+  validatePositiveInteger,
+  validateRequiredText,
+} from "@/lib/validation";
+import {
   addDoc,
   collection,
   deleteDoc,
@@ -102,6 +107,7 @@ const ProductsScreen = () => {
         const data = snapshot.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Omit<Product, "id">),
+          stock: Number((d.data() as Omit<Product, "id">).stock ?? 0) || 0,
         }));
         setProducts(data);
         setLoading(false);
@@ -127,8 +133,10 @@ const ProductsScreen = () => {
 
   const stats = useMemo(() => {
     const total = products.length;
-    const low = products.filter((p) => p.stock > 0 && p.stock <= 25).length;
-    const out = products.filter((p) => p.stock === 0).length;
+    const low = products.filter(
+      (p) => Number(p.stock) > 0 && Number(p.stock) <= 25,
+    ).length;
+    const out = products.filter((p) => Number(p.stock) === 0).length;
     return { total, low, out };
   }, [products]);
 
@@ -148,8 +156,22 @@ const ProductsScreen = () => {
   };
 
   const handleAddProduct = async () => {
-    if (!newProduct.name.trim() || !newProduct.sku.trim()) {
+    if (
+      !validateRequiredText(newProduct.name) ||
+      !validateRequiredText(newProduct.sku)
+    ) {
       Alert.alert("Missing info", "Name and SKU are required.");
+      return;
+    }
+    if (
+      newProduct.price.trim() &&
+      !validateNonNegativeNumber(newProduct.price)
+    ) {
+      Alert.alert("Invalid price", "Enter a valid non-negative price.");
+      return;
+    }
+    if (newProduct.stock.trim() && !validatePositiveInteger(newProduct.stock)) {
+      Alert.alert("Invalid stock", "Stock must be a whole number.");
       return;
     }
 
@@ -195,14 +217,27 @@ const ProductsScreen = () => {
   };
 
   const saveEdit = async (id: string) => {
-    if (!editDraft.sku?.trim()) {
-      Alert.alert("Missing info", "SKU is required.");
+    const draftName = editDraft.name ?? "";
+    const draftSku = editDraft.sku ?? "";
+    const draftPrice = String(editDraft.price ?? "");
+    const draftStock = String(editDraft.stock ?? "");
+
+    if (!validateRequiredText(draftName) || !validateRequiredText(draftSku)) {
+      Alert.alert("Missing info", "Name and SKU are required.");
+      return;
+    }
+    if (draftPrice.trim() && !validateNonNegativeNumber(draftPrice)) {
+      Alert.alert("Invalid price", "Enter a valid non-negative price.");
+      return;
+    }
+    if (draftStock.trim() && !validatePositiveInteger(draftStock)) {
+      Alert.alert("Invalid stock", "Stock must be a whole number.");
       return;
     }
 
     setSavingEdit(true);
     try {
-      const taken = await isSkuTaken(editDraft.sku, id);
+      const taken = await isSkuTaken(draftSku, id);
       if (taken) {
         Alert.alert(
           "Duplicate SKU",
@@ -212,15 +247,12 @@ const ProductsScreen = () => {
       }
 
       await updateDoc(doc(db, "products", id), {
-        name: editDraft.name,
-        sku: editDraft.sku.trim(),
-        skuUpper: editDraft.sku.trim().toUpperCase(),
-        category: editDraft.category,
-        price: editDraft.price,
-        stock:
-          typeof editDraft.stock === "string"
-            ? parseInt(editDraft.stock as unknown as string, 10) || 0
-            : editDraft.stock,
+        name: draftName.trim(),
+        sku: draftSku.trim(),
+        skuUpper: draftSku.trim().toUpperCase(),
+        category: editDraft.category?.trim() ?? "Uncategorized",
+        price: draftPrice.trim() || "0",
+        stock: draftStock.trim() ? parseInt(draftStock, 10) || 0 : 0,
       });
       setEditId(null);
       setEditDraft({});
@@ -298,6 +330,7 @@ const ProductsScreen = () => {
           placeholderTextColor={Colors.textMuted}
           value={search}
           onChangeText={setSearch}
+          autoCorrect={false}
           style={{
             flex: 1,
             fontSize: Spacing[4],
@@ -393,10 +426,8 @@ const ProductsScreen = () => {
             const isEditing = editId === product.id;
 
             return (
-              <TouchableOpacity
+              <View
                 key={product.id}
-                activeOpacity={0.8}
-                onPress={() => toggleExpand(product.id)}
                 style={{
                   borderWidth: 1,
                   borderColor: "rgba(255,255,255,0.1)",
@@ -405,74 +436,87 @@ const ProductsScreen = () => {
                   marginBottom: 12,
                 }}
               >
-                <View className="flex-row items-center">
-                  <View
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 12,
-                      backgroundColor: "rgba(255,255,255,0.05)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginRight: 12,
-                    }}
-                  >
-                    <Text style={{ fontSize: 18 }}>📦</Text>
-                  </View>
+                {/* Only the header row toggles expand/collapse now — same
+                    fix as invoices.tsx. Previously the ENTIRE card was one
+                    TouchableOpacity, so tapping Edit inside it relied on
+                    stopPropagation() to avoid also re-triggering the card's
+                    own collapse toggle. That's reliable on native mobile,
+                    but not guaranteed on web, where the outer toggle could
+                    still fire right after Edit — making editing look like
+                    it did nothing. */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => toggleExpand(product.id)}
+                >
+                  <View className="flex-row items-center">
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        backgroundColor: "rgba(255,255,255,0.05)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 12,
+                      }}
+                    >
+                      <Text style={{ fontSize: 18 }}>📦</Text>
+                    </View>
 
-                  <View style={{ flex: 1 }}>
-                    <View className="flex-row items-center justify-between">
+                    <View style={{ flex: 1 }}>
+                      <View className="flex-row items-center justify-between">
+                        <Text
+                          className="text-text font-inter-bold"
+                          style={{ fontSize: Spacing[4] }}
+                        >
+                          {product.name}
+                        </Text>
+                        <View
+                          style={{
+                            backgroundColor: status.bg,
+                            paddingHorizontal: 10,
+                            paddingVertical: 4,
+                            borderRadius: 20,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: status.color,
+                              fontSize: 12,
+                              fontWeight: "600",
+                            }}
+                          >
+                            {status.label}
+                          </Text>
+                        </View>
+                      </View>
                       <Text
-                        className="text-text font-inter-bold"
-                        style={{ fontSize: Spacing[4] }}
+                        className="text-text-muted font-inter"
+                        style={{ fontSize: Spacing[3] }}
                       >
-                        {product.name}
+                        {product.sku} · {product.category}
                       </Text>
-                      <View
-                        style={{
-                          backgroundColor: status.bg,
-                          paddingHorizontal: 10,
-                          paddingVertical: 4,
-                          borderRadius: 20,
-                        }}
-                      >
+                      <View className="flex-row items-center mt-1">
+                        <Text
+                          className="text-text font-inter-bold"
+                          style={{ fontSize: Spacing[4] }}
+                        >
+                          {formatCurrency(product.price)}
+                        </Text>
                         <Text
                           style={{
                             color: status.color,
-                            fontSize: 12,
-                            fontWeight: "600",
+                            fontSize: Spacing[3],
+                            marginLeft: 8,
                           }}
+                          className="font-inter"
                         >
-                          {status.label}
+                          {product.stock} in stock
                         </Text>
                       </View>
                     </View>
-                    <Text
-                      className="text-text-muted font-inter"
-                      style={{ fontSize: Spacing[3] }}
-                    >
-                      {product.sku} · {product.category}
-                    </Text>
-                    <View className="flex-row items-center mt-1">
-                      <Text
-                        className="text-text font-inter-bold"
-                        style={{ fontSize: Spacing[4] }}
-                      >
-                        {formatCurrency(product.price)}
-                      </Text>
-                      <Text
-                        style={{
-                          color: status.color,
-                          fontSize: Spacing[3],
-                          marginLeft: 8,
-                        }}
-                        className="font-inter"
-                      >
-                        {product.stock} in stock
-                      </Text>
-                    </View>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* Expanded / editable section */}
                 {isExpanded && (
@@ -493,6 +537,7 @@ const ProductsScreen = () => {
                           }
                           placeholder="Name"
                           placeholderTextColor={Colors.textMuted}
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
                         <TextInput
@@ -503,6 +548,7 @@ const ProductsScreen = () => {
                           placeholder="SKU"
                           placeholderTextColor={Colors.textMuted}
                           autoCapitalize="characters"
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
                         <TextInput
@@ -512,6 +558,7 @@ const ProductsScreen = () => {
                           }
                           placeholder="Category"
                           placeholderTextColor={Colors.textMuted}
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
                         <TextInput
@@ -522,6 +569,7 @@ const ProductsScreen = () => {
                           placeholder="Price"
                           placeholderTextColor={Colors.textMuted}
                           keyboardType="decimal-pad"
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
                         <TextInput
@@ -535,6 +583,7 @@ const ProductsScreen = () => {
                           placeholder="Stock"
                           placeholderTextColor={Colors.textMuted}
                           keyboardType="number-pad"
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
 
@@ -618,7 +667,7 @@ const ProductsScreen = () => {
                     )}
                   </View>
                 )}
-              </TouchableOpacity>
+              </View>
             );
           })
         )}
@@ -653,6 +702,7 @@ const ProductsScreen = () => {
               onChangeText={(t) => setNewProduct((p) => ({ ...p, name: t }))}
               placeholder="Product name"
               placeholderTextColor={Colors.textMuted}
+              autoCorrect={false}
               style={editInputStyle}
             />
             <TextInput
@@ -661,6 +711,7 @@ const ProductsScreen = () => {
               placeholder="SKU"
               placeholderTextColor={Colors.textMuted}
               autoCapitalize="characters"
+              autoCorrect={false}
               style={editInputStyle}
             />
             <TextInput
@@ -670,6 +721,7 @@ const ProductsScreen = () => {
               }
               placeholder="Category"
               placeholderTextColor={Colors.textMuted}
+              autoCorrect={false}
               style={editInputStyle}
             />
             <TextInput
@@ -678,6 +730,7 @@ const ProductsScreen = () => {
               placeholder="Price"
               placeholderTextColor={Colors.textMuted}
               keyboardType="decimal-pad"
+              autoCorrect={false}
               style={editInputStyle}
             />
             <TextInput
@@ -686,6 +739,7 @@ const ProductsScreen = () => {
               placeholder="Stock quantity"
               placeholderTextColor={Colors.textMuted}
               keyboardType="number-pad"
+              autoCorrect={false}
               style={editInputStyle}
             />
 

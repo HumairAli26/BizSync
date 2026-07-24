@@ -3,6 +3,11 @@ import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
 import { generateAndShareInvoicePdf } from "@/lib/generateInvoicePdf";
 import {
+  validateNonNegativeNumber,
+  validatePositiveInteger,
+  validateRequiredText,
+} from "@/lib/validation";
+import {
   addDoc,
   collection,
   deleteDoc,
@@ -59,6 +64,8 @@ type Invoice = {
   customerId?: string;
   customerName?: string;
   items?: InvoiceItem[];
+  subtotal?: number;
+  discount?: number;
 };
 
 type Product = {
@@ -78,6 +85,7 @@ type InvoiceItemDraft = {
   id: string;
   queryText: string;
   quantity: string;
+  price: string; // optional manual override — empty string = use DB price
 };
 
 const STATUS_META: Record<
@@ -190,16 +198,23 @@ const InvoicesScreen = () => {
 
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [purchaseModalVisible, setPurchaseModalVisible] = useState(false);
+  const [chooseTypeVisible, setChooseTypeVisible] = useState(false);
   const [savingAdd, setSavingAdd] = useState(false);
   const [newInvoice, setNewInvoice] = useState({
     client: "",
     invoiceNumber: "",
     date: "",
     status: "pending" as InvoiceStatus,
+    discount: "",
   });
   const [itemDrafts, setItemDrafts] = useState<InvoiceItemDraft[]>([
-    { id: nextDraftId(), queryText: "", quantity: "1" },
+    { id: nextDraftId(), queryText: "", quantity: "1", price: "" },
   ]);
+
+  // Item-level editing for an EXISTING invoice — separate from itemDrafts
+  // (which is only for creating a brand-new invoice). Populated from the
+  // invoice's own items when Edit is tapped.
+  const [editItemDrafts, setEditItemDrafts] = useState<InvoiceItemDraft[]>([]);
   const [newPurchaseInvoice, setNewPurchaseInvoice] = useState({
     vendor: "",
     invoiceNumber: "",
@@ -218,8 +233,15 @@ const InvoicesScreen = () => {
   const [orgName, setOrgName] = useState<string>("");
   const [orgEmail, setOrgEmail] = useState<string>("");
   const [orgPhone, setOrgPhone] = useState<string>("");
+  const [orgCell, setOrgCell] = useState<string>("");
   const [orgAddress, setOrgAddress] = useState<string>("");
+  const [orgNtn, setOrgNtn] = useState<string>("");
+  const [orgSalesTaxNo, setOrgSalesTaxNo] = useState<string>("");
   const [orgId, setOrgId] = useState<string>("");
+
+  // The signed-in user's own name — used only for the invoice's
+  // single-creator signature block (System.User.Name).
+  const [signedInUserName, setSignedInUserName] = useState<string>("");
 
   // Fetch the current user's org info
   React.useEffect(() => {
@@ -232,8 +254,12 @@ const InvoicesScreen = () => {
         setOrgName(data.orgName ?? "");
         setOrgEmail(data.orgEmail ?? "");
         setOrgPhone(data.orgPhone ?? "");
+        setOrgCell(data.orgCell ?? "");
         setOrgAddress(data.orgAddress ?? "");
+        setOrgNtn(data.orgNtn ?? "");
+        setOrgSalesTaxNo(data.orgSalesTaxNo ?? "");
         setOrgId(data.orgId ?? "");
+        setSignedInUserName(data.name ?? auth.currentUser?.displayName ?? "");
       }
     });
 
@@ -354,7 +380,7 @@ const InvoicesScreen = () => {
   const addItemRow = () => {
     setItemDrafts((rows) => [
       ...rows,
-      { id: nextDraftId(), queryText: "", quantity: "1" },
+      { id: nextDraftId(), queryText: "", quantity: "1", price: "" },
     ]);
   };
 
@@ -370,14 +396,122 @@ const InvoicesScreen = () => {
     );
   };
 
+  const resetItemDrafts = () => {
+    setItemDrafts([
+      { id: nextDraftId(), queryText: "", quantity: "1", price: "" },
+    ]);
+  };
+
   const resetAddModal = () => {
     setNewInvoice({
       client: "",
       invoiceNumber: "",
       date: "",
       status: "pending",
+      discount: "",
     });
-    setItemDrafts([{ id: nextDraftId(), queryText: "", quantity: "1" }]);
+    resetItemDrafts();
+  };
+
+  // ---- Item draft helpers (Edit Invoice — existing invoice's items) ----
+  const addEditItemRow = () => {
+    setEditItemDrafts((rows) => [
+      ...rows,
+      { id: nextDraftId(), queryText: "", quantity: "1", price: "" },
+    ]);
+  };
+
+  const removeEditItemRow = (id: string) => {
+    setEditItemDrafts((rows) =>
+      rows.length === 1 ? rows : rows.filter((r) => r.id !== id),
+    );
+  };
+
+  const updateEditItemRow = (id: string, patch: Partial<InvoiceItemDraft>) => {
+    setEditItemDrafts((rows) =>
+      rows.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    );
+  };
+
+  // Undoes the stock effect of an invoice's ORIGINAL items before applying
+  // the edited set — otherwise stock would be deducted twice (once when the
+  // invoice was first created, again when the edit re-processes the items).
+  const reverseItemStockEffects = async (
+    items: InvoiceItem[] | undefined,
+    invoiceType: InvoiceType,
+  ) => {
+    if (!items || items.length === 0) return;
+    const isPurchase = invoiceType === "purchase";
+
+    for (const item of items) {
+      const match = findProductMatch(
+        products,
+        item.sku || item.name || item.query,
+      );
+      if (match && match.stock !== null && match.stock !== undefined) {
+        const currentStock = Number(match.stock) || 0;
+        // Reverse of what processInvoiceItems originally did:
+        // sales invoices deducted stock -> add it back
+        // purchase invoices added stock -> take it back off
+        const restoredStock = isPurchase
+          ? Math.max(0, currentStock - item.quantity)
+          : currentStock + item.quantity;
+        try {
+          await updateDoc(doc(db, "products", match.id), {
+            stock: restoredStock,
+          });
+        } catch (error) {
+          console.error("Error reversing stock for edited invoice:", error);
+        }
+      }
+    }
+  };
+
+  // Saves item-level edits (quantity/price/add/remove) for an EXISTING
+  // invoice. Reverses the old stock impact first, then re-applies the new
+  // item list exactly the way invoice creation does, so stock stays correct.
+  const saveInvoiceItemEdits = async (invoice: Invoice) => {
+    if (!validateInvoiceDraftRows(editItemDrafts)) return;
+
+    const hasAtLeastOneItem = editItemDrafts.some((d) => d.queryText.trim());
+    if (!hasAtLeastOneItem) {
+      Alert.alert("No items", "Add at least one product with a quantity.");
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const invoiceType = invoice.type ?? "sales";
+      await reverseItemStockEffects(invoice.items, invoiceType);
+      const { items, total } = await processInvoiceItems(editItemDrafts, {
+        invoiceType,
+      });
+
+      const discountAmount = Number(editDraft.discount) || 0;
+      const finalTotal = Math.max(0, total - discountAmount);
+
+      await updateDoc(doc(db, "invoices", invoice.id), {
+        client: (editDraft.client ?? invoice.client).trim(),
+        invoiceNumber: (
+          editDraft.invoiceNumber ?? invoice.invoiceNumber
+        ).trim(),
+        date: editDraft.date ?? invoice.date,
+        status: editDraft.status ?? invoice.status,
+        items,
+        subtotal: total,
+        discount: discountAmount,
+        amount: finalTotal,
+      });
+
+      setEditId(null);
+      setEditDraft({});
+      setEditItemDrafts([]);
+    } catch (error) {
+      console.error("Error saving invoice item edits:", error);
+      Alert.alert("Error", "Could not save item changes. Please try again.");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const resetPurchaseModal = () => {
@@ -388,20 +522,11 @@ const InvoicesScreen = () => {
       amount: "",
       status: "pending",
     });
+    resetItemDrafts();
   };
 
   const openNewInvoicePicker = () => {
-    Alert.alert("New Invoice", "Choose invoice type", [
-      {
-        text: "Sales Invoice",
-        onPress: () => setAddModalVisible(true),
-      },
-      {
-        text: "Purchase Invoice",
-        onPress: () => setPurchaseModalVisible(true),
-      },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    setChooseTypeVisible(true);
   };
 
   const resolveCustomerLink = (clientName: string) => {
@@ -415,37 +540,84 @@ const InvoicesScreen = () => {
     };
   };
 
+  const validateInvoiceDraftRows = (drafts: InvoiceItemDraft[]) => {
+    for (const draft of drafts) {
+      const rawQuery = draft.queryText.trim();
+      if (!rawQuery) continue;
+
+      if (!validatePositiveInteger(draft.quantity)) {
+        Alert.alert(
+          "Invalid quantity",
+          "Each item quantity must be a whole number greater than zero.",
+        );
+        return false;
+      }
+
+      if (draft.price.trim() && !validateNonNegativeNumber(draft.price)) {
+        Alert.alert(
+          "Invalid price",
+          "Price must be a valid non-negative number.",
+        );
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   // Resolves each drafted row against the products collection:
-  // - match found -> uses its price, decrements its stock
+  // - sales invoice: uses existing product price, decrements stock, never overwrites price
+  // - purchase invoice: uses existing product price, increments stock, can update price when entered
   // - no match -> auto-creates the product (sku + name = whatever was typed),
   //   leaves price/stock at 0 until filled in
   const processInvoiceItems = async (
     drafts: InvoiceItemDraft[],
+    options?: { invoiceType?: InvoiceType },
   ): Promise<{ items: InvoiceItem[]; total: number }> => {
     const items: InvoiceItem[] = [];
     let total = 0;
+    const invoiceType = options?.invoiceType ?? "sales";
+    const isPurchase = invoiceType === "purchase";
 
     for (const draft of drafts) {
       const rawQuery = draft.queryText.trim();
       if (!rawQuery) continue;
 
       const quantity = Number(draft.quantity) || 1;
+      const manualPriceText = draft.price.trim();
+      const parsedManualPrice = manualPriceText
+        ? parseFloat(manualPriceText)
+        : NaN;
+      const hasManualPrice =
+        manualPriceText !== "" &&
+        !isNaN(parsedManualPrice) &&
+        parsedManualPrice >= 0;
 
       const match = findProductMatch(products, rawQuery);
 
       if (match) {
-        const unitPrice = Number(match.price ?? 0);
+        const dbPrice = Number(match.price ?? 0);
+        const unitPrice = hasManualPrice ? parsedManualPrice : dbPrice;
         const lineTotal = quantity * unitPrice;
 
-        if (match.stock !== null && match.stock !== undefined) {
-          const currentStock = Number(match.stock);
+        const productUpdates: Record<string, string | number> = {};
 
+        if (match.stock !== null && match.stock !== undefined) {
+          const currentStock = Number(match.stock) || 0;
+          productUpdates.stock = isPurchase
+            ? currentStock + quantity
+            : Math.max(0, currentStock - quantity);
+        }
+
+        if (isPurchase && hasManualPrice && unitPrice !== dbPrice) {
+          productUpdates.price = unitPrice;
+        }
+
+        if (Object.keys(productUpdates).length > 0) {
           try {
-            await updateDoc(doc(db, "products", match.id), {
-              stock: currentStock - quantity,
-            });
+            await updateDoc(doc(db, "products", match.id), productUpdates);
           } catch (error) {
-            console.error("Error updating stock:", error);
+            console.error("Error updating product:", error);
           }
         }
 
@@ -461,14 +633,18 @@ const InvoicesScreen = () => {
 
         total += lineTotal;
       } else {
-        // Product not found -> create it automatically, scoped to this org
+        // Product not found -> create it automatically, scoped to this org.
+        // Use the manual price if given, otherwise fall back to 0.
+        const unitPrice = hasManualPrice ? parsedManualPrice : 0;
+        const lineTotal = quantity * unitPrice;
+
         try {
           await addDoc(collection(db, "products"), {
             orgId,
             sku: rawQuery,
             name: rawQuery,
-            price: "0",
-            stock: "0",
+            price: String(unitPrice),
+            stock: isPurchase ? quantity : 0,
             createdAt: Date.now(),
           });
         } catch (error) {
@@ -480,10 +656,12 @@ const InvoicesScreen = () => {
           sku: rawQuery,
           name: rawQuery,
           quantity,
-          unitPrice: 0,
-          lineTotal: 0,
+          unitPrice,
+          lineTotal,
           matched: false,
         });
+
+        total += lineTotal;
       }
     }
 
@@ -494,7 +672,10 @@ const InvoicesScreen = () => {
   };
 
   const handleAddInvoice = async () => {
-    if (!newInvoice.client.trim() || !newInvoice.invoiceNumber.trim()) {
+    if (
+      !validateRequiredText(newInvoice.client) ||
+      !validateRequiredText(newInvoice.invoiceNumber)
+    ) {
       Alert.alert("Missing info", "Client and invoice number are required.");
       return;
     }
@@ -508,12 +689,20 @@ const InvoicesScreen = () => {
       return;
     }
 
+    if (!validateInvoiceDraftRows(itemDrafts)) {
+      return;
+    }
+
     setSavingAdd(true);
     try {
-      const { items, total } = await processInvoiceItems(itemDrafts);
+      const { items, total } = await processInvoiceItems(itemDrafts, {
+        invoiceType: "sales",
+      });
+      const discountAmount = Math.max(0, parseFloat(newInvoice.discount) || 0);
+      const finalTotal = Math.max(0, total - discountAmount);
       const normalizedStatus: InvoiceStatus =
         newInvoice.status === "paid" ? "paid" : newInvoice.status;
-      const initialAmountPaid = normalizedStatus === "paid" ? total : 0;
+      const initialAmountPaid = normalizedStatus === "paid" ? finalTotal : 0;
       const customerLink = resolveCustomerLink(newInvoice.client.trim());
 
       await addDoc(collection(db, "invoices"), {
@@ -521,7 +710,9 @@ const InvoicesScreen = () => {
         client: newInvoice.client.trim(),
         invoiceNumber: newInvoice.invoiceNumber.trim(),
         date: newInvoice.date.trim() || new Date().toISOString().slice(0, 10),
-        amount: total,
+        subtotal: total,
+        discount: discountAmount,
+        amount: finalTotal,
         amountPaid: initialAmountPaid,
         status: normalizedStatus,
         type: "sales",
@@ -532,10 +723,10 @@ const InvoicesScreen = () => {
       });
 
       // Paid-at-creation sales invoices must immediately affect revenue metrics.
-      if (normalizedStatus === "paid" && total > 0) {
+      if (normalizedStatus === "paid" && finalTotal > 0) {
         await addDoc(collection(db, "sales"), {
           orgId,
-          amount: Math.abs(total),
+          amount: Math.abs(finalTotal),
           client: newInvoice.client.trim(),
           invoiceNumber: newInvoice.invoiceNumber.trim(),
           type: "invoice_payment",
@@ -556,29 +747,35 @@ const InvoicesScreen = () => {
   const handleAddPurchaseInvoice = async () => {
     if (
       !newPurchaseInvoice.vendor.trim() ||
-      !newPurchaseInvoice.invoiceNumber.trim() ||
-      !newPurchaseInvoice.amount.trim()
+      !newPurchaseInvoice.invoiceNumber.trim()
     ) {
+      Alert.alert("Missing info", "Vendor and invoice number are required.");
+      return;
+    }
+
+    const hasAtLeastOneItem = itemDrafts.some((d) => d.queryText.trim());
+    if (!hasAtLeastOneItem) {
       Alert.alert(
-        "Missing info",
-        "Vendor, invoice number, and amount are required.",
+        "No products added",
+        "Add at least one item name, price, and quantity.",
       );
       return;
     }
 
-    const parsedAmount = parseFloat(newPurchaseInvoice.amount);
-    if (!parsedAmount || parsedAmount <= 0) {
-      Alert.alert("Invalid amount", "Enter a valid amount greater than zero.");
+    if (!validateInvoiceDraftRows(itemDrafts)) {
       return;
     }
 
     setSavingAdd(true);
     try {
+      const { items, total } = await processInvoiceItems(itemDrafts, {
+        invoiceType: "purchase",
+      });
       const normalizedStatus: InvoiceStatus =
         newPurchaseInvoice.status === "paid"
           ? "paid"
           : newPurchaseInvoice.status;
-      const initialAmountPaid = normalizedStatus === "paid" ? parsedAmount : 0;
+      const initialAmountPaid = normalizedStatus === "paid" ? total : 0;
 
       await addDoc(collection(db, "invoices"), {
         orgId,
@@ -587,19 +784,19 @@ const InvoicesScreen = () => {
         date:
           newPurchaseInvoice.date.trim() ||
           new Date().toISOString().slice(0, 10),
-        amount: parsedAmount,
+        amount: total,
         amountPaid: initialAmountPaid,
         status: normalizedStatus,
         type: "purchase",
-        items: [],
+        items,
         createdAt: Date.now(),
       });
 
       // Paid purchase invoices are expenses and should reduce net revenue.
-      if (normalizedStatus === "paid" && parsedAmount > 0) {
+      if (normalizedStatus === "paid" && total > 0) {
         await addDoc(collection(db, "sales"), {
           orgId,
-          amount: -Math.abs(parsedAmount),
+          amount: -Math.abs(total),
           client: newPurchaseInvoice.vendor.trim(),
           invoiceNumber: newPurchaseInvoice.invoiceNumber.trim(),
           type: "purchase_payment",
@@ -619,32 +816,55 @@ const InvoicesScreen = () => {
 
   const startEdit = (invoice: Invoice) => {
     setEditId(invoice.id);
-    setEditDraft({ ...invoice });
+    setEditDraft({ ...invoice, discount: invoice.discount ?? 0 });
+
+    if (invoice.items && invoice.items.length > 0) {
+      setEditItemDrafts(
+        invoice.items.map((item) => ({
+          id: nextDraftId(),
+          queryText: item.query || item.name || item.sku,
+          quantity: String(item.quantity),
+          price: String(item.unitPrice),
+        })),
+      );
+    } else {
+      setEditItemDrafts([]);
+    }
   };
 
   const cancelEdit = () => {
     setEditId(null);
     setEditDraft({});
+    setEditItemDrafts([]);
   };
 
   const saveEdit = async (id: string) => {
-    if (!editDraft.client?.trim() || !editDraft.invoiceNumber?.trim()) {
+    const draftClient = editDraft.client ?? "";
+    const draftInvoiceNumber = editDraft.invoiceNumber ?? "";
+    const draftAmount = String(editDraft.amount ?? "");
+    const draftDate = editDraft.date ?? "";
+
+    if (
+      !validateRequiredText(draftClient) ||
+      !validateRequiredText(draftInvoiceNumber)
+    ) {
       Alert.alert("Missing info", "Client and invoice number are required.");
+      return;
+    }
+    if (draftAmount.trim() && !validateNonNegativeNumber(draftAmount)) {
+      Alert.alert("Invalid amount", "Enter a valid non-negative amount.");
       return;
     }
 
     setSavingEdit(true);
     try {
-      const customerLink = resolveCustomerLink(editDraft.client.trim());
+      const customerLink = resolveCustomerLink(draftClient.trim());
       await updateDoc(doc(db, "invoices", id), {
-        client: editDraft.client.trim(),
-        invoiceNumber: editDraft.invoiceNumber.trim(),
-        date: editDraft.date,
-        amount:
-          typeof editDraft.amount === "string"
-            ? parseFloat(editDraft.amount as unknown as string) || 0
-            : editDraft.amount,
-        status: editDraft.status,
+        client: draftClient.trim(),
+        invoiceNumber: draftInvoiceNumber.trim(),
+        date: draftDate.trim(),
+        amount: draftAmount.trim() ? parseFloat(draftAmount) || 0 : 0,
+        status: editDraft.status ?? "pending",
         customerId: customerLink.customerId ?? null,
         customerName: customerLink.customerName ?? null,
       });
@@ -778,6 +998,8 @@ const InvoicesScreen = () => {
 
   const handleDownload = async (invoice: Invoice) => {
     try {
+      const amountPaid = getAmountPaid(invoice);
+      const balanceDue = getBalanceDue(invoice);
       await generateAndShareInvoicePdf({
         invoiceNumber: invoice.invoiceNumber,
         date: invoice.date,
@@ -785,10 +1007,19 @@ const InvoicesScreen = () => {
         amount: invoice.amount,
         items: invoice.items,
         status: invoice.status,
+        invoiceType: invoice.type ?? "sales",
+        amountPaid,
+        balanceDue,
+        discount: invoice.discount,
         orgName: orgName || "Your Business",
         orgEmail: orgEmail || undefined,
         orgPhone: orgPhone || undefined,
+        orgCell: orgCell || undefined,
         orgAddress: orgAddress || undefined,
+        orgNtn: orgNtn || undefined,
+        orgSalesTaxNo: orgSalesTaxNo || undefined,
+        preparedByName:
+          signedInUserName || auth.currentUser?.email || undefined,
       });
     } catch (error) {
       console.error("PDF generation failed:", error);
@@ -835,13 +1066,21 @@ const InvoicesScreen = () => {
       </View>
 
       {/* Search */}
-      <View className="search-container">
-        <SearchIcon color={Colors.textMuted} className="search-icon" />
+      <View
+        className="search-container"
+        style={{ flexDirection: "row", alignItems: "center" }}
+      >
+        <SearchIcon
+          color={Colors.textMuted}
+          size={Spacing[5]}
+          style={{ marginRight: Spacing[2], flexShrink: 0 }}
+        />
         <TextInput
           placeholder="Search invoices..."
           placeholderTextColor={Colors.textMuted}
           value={search}
           onChangeText={setSearch}
+          autoCorrect={false}
           style={{
             flex: 1,
             fontSize: Spacing[4],
@@ -940,22 +1179,45 @@ const InvoicesScreen = () => {
         </View>
       </View>
 
-      {/* Filter tabs */}
-      <View className="flex-row items-center mt-5 gap-1">
-        {STATUS_TABS.map((tab) => (
-          <Pressable
-            key={tab.key}
-            onPress={() => setActiveTab(tab.key)}
-            style={[
-              activeTab === tab.key
-                ? styles.buttonActive
-                : styles.buttonInactive,
-            ]}
-            className="list-action"
-          >
-            <Text className="list-action-text">{tab.label}</Text>
-          </Pressable>
-        ))}
+      {/*
+        Filter tabs
+        Previously these only got sizing from a `className="list-action"`
+        that wasn't guaranteed to apply, plus a StyleSheet that set nothing
+        but backgroundColor. With no real padding landing on the Pressable,
+        every tab shrank to bare text with no spacing, so the whole row
+        collapsed into a tight cluster instead of a row of pill buttons.
+        Padding/border-radius/text color are now set directly inline so
+        they always apply, on every platform.
+      */}
+      <View className="flex-row flex-wrap items-center mt-5" style={{ gap: 8 }}>
+        {STATUS_TABS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <Pressable
+              key={tab.key}
+              onPress={() => setActiveTab(tab.key)}
+              style={[
+                {
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                },
+                isActive ? styles.buttonActive : styles.buttonInactive,
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: isActive ? Colors.text : Colors.textMuted,
+                }}
+              >
+                {tab.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Invoice list / empty state */}
@@ -1008,10 +1270,8 @@ const InvoicesScreen = () => {
               invoice.status === "partial";
 
             return (
-              <TouchableOpacity
+              <View
                 key={invoice.id}
-                activeOpacity={0.85}
-                onPress={() => toggleExpand(invoice.id)}
                 style={{
                   borderWidth: 1,
                   borderColor: "rgba(255,255,255,0.1)",
@@ -1020,44 +1280,58 @@ const InvoicesScreen = () => {
                   marginBottom: 12,
                 }}
               >
-                {/* Top row */}
-                <View className="flex-row items-center justify-between">
-                  <View>
-                    <Text
-                      className="text-text font-inter-bold"
-                      style={{ fontSize: Spacing[4] }}
-                    >
-                      {invoice.client}
-                    </Text>
+                {/* Top row — only this part toggles expand/collapse now.
+                    Previously the WHOLE card was one TouchableOpacity, so
+                    every button inside it (Edit, Delete, Save...) had to
+                    stopPropagation() to avoid also re-triggering the card's
+                    own toggle. That works reliably on native mobile, but on
+                    web a click's propagation doesn't always get stopped the
+                    same way — so tapping Edit would open edit mode AND
+                    immediately re-collapse the card, making editing look
+                    broken. Isolating the tap target to just the header
+                    removes the conflict entirely, on every platform. */}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => toggleExpand(invoice.id)}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View>
+                      <Text
+                        className="text-text font-inter-bold"
+                        style={{ fontSize: Spacing[4] }}
+                      >
+                        {invoice.client}
+                      </Text>
 
-                    <Text
-                      className="text-text-muted font-inter"
-                      style={{ fontSize: Spacing[3] }}
-                    >
-                      {invoice.invoiceNumber} · {invoice.date} ·{" "}
-                      {(invoice.type ?? "sales").toUpperCase()}
-                    </Text>
-                  </View>
+                      <Text
+                        className="text-text-muted font-inter"
+                        style={{ fontSize: Spacing[3] }}
+                      >
+                        {invoice.invoiceNumber} · {invoice.date} ·{" "}
+                        {(invoice.type ?? "sales").toUpperCase()}
+                      </Text>
+                    </View>
 
-                  <View
-                    style={{
-                      backgroundColor: meta.bg,
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                      borderRadius: 20,
-                    }}
-                  >
-                    <Text
+                    <View
                       style={{
-                        color: meta.color,
-                        fontSize: 12,
-                        fontWeight: "600",
+                        backgroundColor: meta.bg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        borderRadius: 20,
                       }}
                     >
-                      {meta.label}
-                    </Text>
+                      <Text
+                        style={{
+                          color: meta.color,
+                          fontSize: 12,
+                          fontWeight: "600",
+                        }}
+                      >
+                        {meta.label}
+                      </Text>
+                    </View>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* Divider */}
                 <View
@@ -1139,7 +1413,7 @@ const InvoicesScreen = () => {
 
                 {/* Payment actions */}
                 {canTakePayment && (
-                  <View className="flex-row gap-2 mt-3">
+                  <View className="flex-row flex-wrap gap-2 mt-3">
                     <TouchableOpacity
                       onPress={(e: any) => {
                         e.stopPropagation?.();
@@ -1147,6 +1421,7 @@ const InvoicesScreen = () => {
                       }}
                       style={{
                         flex: 1,
+                        minWidth: 140,
                         backgroundColor: "rgba(59,130,246,0.15)",
                         borderRadius: 10,
                         paddingVertical: 9,
@@ -1167,6 +1442,7 @@ const InvoicesScreen = () => {
                       }}
                       style={{
                         flex: 1,
+                        minWidth: 140,
                         backgroundColor: Colors.primary ?? "#4b7c59",
                         borderRadius: 10,
                         paddingVertical: 9,
@@ -1229,6 +1505,7 @@ const InvoicesScreen = () => {
                           }
                           placeholder="Client name"
                           placeholderTextColor={Colors.textMuted}
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
                         <TextInput
@@ -1238,6 +1515,7 @@ const InvoicesScreen = () => {
                           }
                           placeholder="Invoice number"
                           placeholderTextColor={Colors.textMuted}
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
                         <TextInput
@@ -1247,21 +1525,143 @@ const InvoicesScreen = () => {
                           }
                           placeholder="Date (e.g. Jul 10, 2024)"
                           placeholderTextColor={Colors.textMuted}
+                          autoCorrect={false}
                           style={editInputStyle}
                         />
-                        <TextInput
-                          value={String(editDraft.amount ?? "")}
-                          onChangeText={(t) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              amount: t as unknown as number,
-                            }))
-                          }
-                          placeholder="Amount"
-                          placeholderTextColor={Colors.textMuted}
-                          keyboardType="decimal-pad"
-                          style={editInputStyle}
-                        />
+
+                        {editItemDrafts.length > 0 ? (
+                          <View style={{ marginBottom: 4 }}>
+                            <Text
+                              className="text-text-muted font-inter"
+                              style={{ fontSize: 12, marginBottom: 6 }}
+                            >
+                              Items
+                            </Text>
+                            {editItemDrafts.map((row) => (
+                              <View
+                                key={row.id}
+                                className="flex-row items-center"
+                                style={{ gap: 6, marginBottom: 8 }}
+                              >
+                                <TextInput
+                                  value={row.queryText}
+                                  onChangeText={(t) =>
+                                    updateEditItemRow(row.id, {
+                                      queryText: t,
+                                    })
+                                  }
+                                  placeholder="Product SKU or name"
+                                  placeholderTextColor={Colors.textMuted}
+                                  autoCorrect={false}
+                                  style={[
+                                    editInputStyle,
+                                    { flex: 2, marginBottom: 0 },
+                                  ]}
+                                />
+                                <TextInput
+                                  value={row.quantity}
+                                  onChangeText={(t) =>
+                                    updateEditItemRow(row.id, { quantity: t })
+                                  }
+                                  placeholder="Qty"
+                                  placeholderTextColor={Colors.textMuted}
+                                  keyboardType="number-pad"
+                                  style={[
+                                    editInputStyle,
+                                    { width: 60, marginBottom: 0 },
+                                  ]}
+                                />
+                                <TextInput
+                                  value={row.price}
+                                  onChangeText={(t) =>
+                                    updateEditItemRow(row.id, { price: t })
+                                  }
+                                  placeholder="Price"
+                                  placeholderTextColor={Colors.textMuted}
+                                  keyboardType="decimal-pad"
+                                  style={[
+                                    editInputStyle,
+                                    { width: 80, marginBottom: 0 },
+                                  ]}
+                                />
+                                <TouchableOpacity
+                                  onPress={(e: any) => {
+                                    e.stopPropagation?.();
+                                    removeEditItemRow(row.id);
+                                  }}
+                                  style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 8,
+                                    backgroundColor: "rgba(239,68,68,0.15)",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      color: "#ef4444",
+                                      fontWeight: "700",
+                                    }}
+                                  >
+                                    ×
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                            ))}
+
+                            <TouchableOpacity
+                              onPress={(e: any) => {
+                                e.stopPropagation?.();
+                                addEditItemRow();
+                              }}
+                              style={{
+                                borderWidth: 1,
+                                borderColor: "rgba(255,255,255,0.15)",
+                                borderRadius: 10,
+                                paddingVertical: 8,
+                                alignItems: "center",
+                                marginBottom: 10,
+                              }}
+                            >
+                              <Text
+                                className="text-text-muted font-inter-bold"
+                                style={{ fontSize: 13 }}
+                              >
+                                + Add Item
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TextInput
+                              value={String(editDraft.discount ?? "")}
+                              onChangeText={(t) =>
+                                setEditDraft((d) => ({
+                                  ...d,
+                                  discount: t as unknown as number,
+                                }))
+                              }
+                              placeholder="Discount (Rs., optional)"
+                              placeholderTextColor={Colors.textMuted}
+                              keyboardType="decimal-pad"
+                              style={editInputStyle}
+                            />
+                          </View>
+                        ) : (
+                          <TextInput
+                            value={String(editDraft.amount ?? "")}
+                            onChangeText={(t) =>
+                              setEditDraft((d) => ({
+                                ...d,
+                                amount: t as unknown as number,
+                              }))
+                            }
+                            placeholder="Amount"
+                            placeholderTextColor={Colors.textMuted}
+                            keyboardType="decimal-pad"
+                            autoCorrect={false}
+                            style={editInputStyle}
+                          />
+                        )}
 
                         {/* Status chips */}
                         <View className="flex-row flex-wrap gap-2 mb-3">
@@ -1309,15 +1709,20 @@ const InvoicesScreen = () => {
                           )}
                         </View>
 
-                        <View className="flex-row gap-3">
+                        <View className="flex-row flex-wrap gap-3">
                           <TouchableOpacity
                             disabled={savingEdit}
                             onPress={(e: any) => {
                               e.stopPropagation?.();
-                              saveEdit(invoice.id);
+                              if (editItemDrafts.length > 0) {
+                                saveInvoiceItemEdits(invoice);
+                              } else {
+                                saveEdit(invoice.id);
+                              }
                             }}
                             style={{
                               flex: 1,
+                              minWidth: 120,
                               backgroundColor: Colors.primary ?? "#4b7c59",
                               borderRadius: 10,
                               paddingVertical: 10,
@@ -1336,6 +1741,7 @@ const InvoicesScreen = () => {
                             }}
                             style={{
                               flex: 1,
+                              minWidth: 120,
                               backgroundColor: "rgba(255,255,255,0.08)",
                               borderRadius: 10,
                               paddingVertical: 10,
@@ -1347,7 +1753,7 @@ const InvoicesScreen = () => {
                         </View>
                       </View>
                     ) : (
-                      <View className="flex-row gap-3">
+                      <View className="flex-row flex-wrap gap-3">
                         <TouchableOpacity
                           onPress={(e: any) => {
                             e.stopPropagation?.();
@@ -1355,6 +1761,7 @@ const InvoicesScreen = () => {
                           }}
                           style={{
                             flex: 1,
+                            minWidth: 120,
                             backgroundColor: "rgba(255,255,255,0.08)",
                             borderRadius: 10,
                             paddingVertical: 10,
@@ -1372,6 +1779,7 @@ const InvoicesScreen = () => {
                           }}
                           style={{
                             flex: 1,
+                            minWidth: 120,
                             backgroundColor: "rgba(239,68,68,0.15)",
                             borderRadius: 10,
                             paddingVertical: 10,
@@ -1389,11 +1797,93 @@ const InvoicesScreen = () => {
                     )}
                   </View>
                 )}
-              </TouchableOpacity>
+              </View>
             );
           })
         )}
       </ScrollView>
+
+      {/* Choose Invoice Type Modal — replaces the old Alert.alert picker,
+          which silently did nothing on web since RN Web has no real
+          Alert.alert implementation with custom buttons. */}
+      <Modal visible={chooseTypeVisible} transparent animationType="fade">
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: Colors.background ?? "#111",
+              borderRadius: 16,
+              padding: 20,
+            }}
+          >
+            <Text
+              className="text-text font-inter-bold"
+              style={{ fontSize: Spacing[5], marginBottom: 14 }}
+            >
+              New Invoice
+            </Text>
+            <Text
+              className="text-text-muted font-inter"
+              style={{ fontSize: 13, marginBottom: 16 }}
+            >
+              What kind of invoice is this?
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => {
+                setChooseTypeVisible(false);
+                resetAddModal();
+                setAddModalVisible(true);
+              }}
+              style={{
+                backgroundColor: Colors.primary ?? "#4b7c59",
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginBottom: 10,
+              }}
+            >
+              <Text className="text-text font-inter-bold">
+                Sales Invoice (money coming in)
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setChooseTypeVisible(false);
+                resetPurchaseModal();
+                setPurchaseModalVisible(true);
+              }}
+              style={{
+                backgroundColor: "rgba(245,158,11,0.15)",
+                borderWidth: 1,
+                borderColor: "#f59e0b",
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginBottom: 10,
+              }}
+            >
+              <Text style={{ color: "#f59e0b" }} className="font-inter-bold">
+                Purchase Invoice (money going out)
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setChooseTypeVisible(false)}
+              style={{ paddingVertical: 10, alignItems: "center" }}
+            >
+              <Text className="text-text-muted">Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* New Invoice Modal */}
       <Modal visible={addModalVisible} animationType="slide" transparent>
@@ -1428,6 +1918,7 @@ const InvoicesScreen = () => {
                 }
                 placeholder="Client name"
                 placeholderTextColor={Colors.textMuted}
+                autoCorrect={false}
                 style={editInputStyle}
               />
               <TextInput
@@ -1437,6 +1928,7 @@ const InvoicesScreen = () => {
                 }
                 placeholder="Invoice number (e.g. INV-2024-004)"
                 placeholderTextColor={Colors.textMuted}
+                autoCorrect={false}
                 style={editInputStyle}
               />
               <TextInput
@@ -1444,6 +1936,7 @@ const InvoicesScreen = () => {
                 onChangeText={(t) => setNewInvoice((p) => ({ ...p, date: t }))}
                 placeholder="Date (e.g. Jul 20, 2024)"
                 placeholderTextColor={Colors.textMuted}
+                autoCorrect={false}
                 style={editInputStyle}
               />
 
@@ -1508,6 +2001,7 @@ const InvoicesScreen = () => {
                     }
                     placeholder="SKU or product name"
                     placeholderTextColor={Colors.textMuted}
+                    autoCorrect={false}
                     style={[editInputStyle, { flex: 2, marginBottom: 0 }]}
                   />
                   <TextInput
@@ -1516,7 +2010,17 @@ const InvoicesScreen = () => {
                     placeholder="Qty"
                     placeholderTextColor={Colors.textMuted}
                     keyboardType="number-pad"
+                    autoCorrect={false}
                     style={[editInputStyle, { flex: 1, marginBottom: 0 }]}
+                  />
+                  <TextInput
+                    value={row.price}
+                    onChangeText={(t) => updateItemRow(row.id, { price: t })}
+                    placeholder="Price (optional)"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="decimal-pad"
+                    autoCorrect={false}
+                    style={[editInputStyle, { flex: 1.4, marginBottom: 0 }]}
                   />
                   <TouchableOpacity
                     onPress={() => removeItemRow(row.id)}
@@ -1551,21 +2055,33 @@ const InvoicesScreen = () => {
                 </Text>
               </TouchableOpacity>
 
+              <TextInput
+                value={newInvoice.discount}
+                onChangeText={(t) =>
+                  setNewInvoice((p) => ({ ...p, discount: t }))
+                }
+                placeholder="Discount (Rs., optional — applies to whole invoice)"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="decimal-pad"
+                style={editInputStyle}
+              />
+
               <Text
                 className="text-text-muted font-inter"
                 style={{ fontSize: 12, marginBottom: 14 }}
               >
-                Prices and stock come from your Products list automatically.
-                Unrecognized SKUs/names are added as new products with price and
-                stock left blank.
+                Leave price blank to use the price on file. Enter a price to
+                override it for this invoice - this also updates the product's
+                stored price. Unrecognized SKUs/names are added as new products.
               </Text>
 
-              <View className="flex-row gap-3 mt-1">
+              <View className="flex-row flex-wrap gap-3 mt-1">
                 <TouchableOpacity
                   disabled={savingAdd}
                   onPress={handleAddInvoice}
                   style={{
                     flex: 1,
+                    minWidth: 140,
                     backgroundColor: Colors.primary ?? "#4b7c59",
                     borderRadius: 12,
                     paddingVertical: 14,
@@ -1584,6 +2100,7 @@ const InvoicesScreen = () => {
                   }}
                   style={{
                     flex: 1,
+                    minWidth: 140,
                     backgroundColor: "rgba(255,255,255,0.08)",
                     borderRadius: 12,
                     paddingVertical: 14,
@@ -1629,6 +2146,7 @@ const InvoicesScreen = () => {
               }
               placeholder="Vendor name"
               placeholderTextColor={Colors.textMuted}
+              autoCorrect={false}
               style={editInputStyle}
             />
             <TextInput
@@ -1638,6 +2156,7 @@ const InvoicesScreen = () => {
               }
               placeholder="Purchase invoice number"
               placeholderTextColor={Colors.textMuted}
+              autoCorrect={false}
               style={editInputStyle}
             />
             <TextInput
@@ -1647,19 +2166,9 @@ const InvoicesScreen = () => {
               }
               placeholder="Date (e.g. Jul 20, 2024)"
               placeholderTextColor={Colors.textMuted}
+              autoCorrect={false}
               style={editInputStyle}
             />
-            <TextInput
-              value={newPurchaseInvoice.amount}
-              onChangeText={(t) =>
-                setNewPurchaseInvoice((p) => ({ ...p, amount: t }))
-              }
-              placeholder="Amount"
-              placeholderTextColor={Colors.textMuted}
-              keyboardType="decimal-pad"
-              style={editInputStyle}
-            />
-
             <View className="flex-row flex-wrap gap-2 mb-3">
               {(["pending", "paid"] as InvoiceStatus[]).map((statusKey) => {
                 const active = newPurchaseInvoice.status === statusKey;
@@ -1701,12 +2210,94 @@ const InvoicesScreen = () => {
               })}
             </View>
 
-            <View className="flex-row gap-3 mt-1">
+            <Text
+              className="text-text font-inter-bold"
+              style={{ fontSize: Spacing[4], marginBottom: 8 }}
+            >
+              Products
+            </Text>
+
+            {itemDrafts.map((row) => (
+              <View
+                key={row.id}
+                className="flex-row items-center gap-2"
+                style={{ marginBottom: 10 }}
+              >
+                <TextInput
+                  value={row.queryText}
+                  onChangeText={(t) => updateItemRow(row.id, { queryText: t })}
+                  placeholder="Item name"
+                  placeholderTextColor={Colors.textMuted}
+                  autoCorrect={false}
+                  style={[editInputStyle, { flex: 2, marginBottom: 0 }]}
+                />
+                <TextInput
+                  value={row.quantity}
+                  onChangeText={(t) => updateItemRow(row.id, { quantity: t })}
+                  placeholder="Qty"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="number-pad"
+                  autoCorrect={false}
+                  style={[editInputStyle, { flex: 1, marginBottom: 0 }]}
+                />
+                <TextInput
+                  value={row.price}
+                  onChangeText={(t) => updateItemRow(row.id, { price: t })}
+                  placeholder="Price"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="decimal-pad"
+                  autoCorrect={false}
+                  style={[editInputStyle, { flex: 1.4, marginBottom: 0 }]}
+                />
+                <TouchableOpacity
+                  onPress={() => removeItemRow(row.id)}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(239,68,68,0.15)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: "#ef4444" }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            <TouchableOpacity
+              onPress={addItemRow}
+              style={{
+                alignSelf: "flex-start",
+                paddingVertical: 8,
+                paddingHorizontal: 4,
+                marginBottom: 14,
+              }}
+            >
+              <Text
+                className="font-inter-bold"
+                style={{ color: Colors.primary ?? "#4b7c59", fontSize: 13 }}
+              >
+                + Add another product
+              </Text>
+            </TouchableOpacity>
+
+            <Text
+              className="text-text-muted font-inter"
+              style={{ fontSize: 12, marginBottom: 14 }}
+            >
+              Leave price blank to use the price on file. Enter a price to
+              override it for this invoice - this also updates the product's
+              stored price.
+            </Text>
+
+            <View className="flex-row flex-wrap gap-3 mt-1">
               <TouchableOpacity
                 disabled={savingAdd}
                 onPress={handleAddPurchaseInvoice}
                 style={{
                   flex: 1,
+                  minWidth: 140,
                   backgroundColor: Colors.primary ?? "#4b7c59",
                   borderRadius: 12,
                   paddingVertical: 14,
@@ -1725,6 +2316,7 @@ const InvoicesScreen = () => {
                 }}
                 style={{
                   flex: 1,
+                  minWidth: 140,
                   backgroundColor: "rgba(255,255,255,0.08)",
                   borderRadius: 12,
                   paddingVertical: 14,
@@ -1778,15 +2370,17 @@ const InvoicesScreen = () => {
               placeholder="Amount received"
               placeholderTextColor={Colors.textMuted}
               keyboardType="decimal-pad"
+              autoCorrect={false}
               style={editInputStyle}
             />
 
-            <View className="flex-row gap-3 mt-2">
+            <View className="flex-row flex-wrap gap-3 mt-2">
               <TouchableOpacity
                 disabled={savingPayment}
                 onPress={handleRecordPayment}
                 style={{
                   flex: 1,
+                  minWidth: 140,
                   backgroundColor: Colors.primary ?? "#4b7c59",
                   borderRadius: 10,
                   paddingVertical: 12,
@@ -1802,6 +2396,7 @@ const InvoicesScreen = () => {
                 onPress={closePaymentModal}
                 style={{
                   flex: 1,
+                  minWidth: 140,
                   backgroundColor: "rgba(255,255,255,0.08)",
                   borderRadius: 10,
                   paddingVertical: 12,
@@ -1831,9 +2426,11 @@ const editInputStyle = {
 const styles = StyleSheet.create({
   buttonInactive: {
     backgroundColor: Colors.background,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   buttonActive: {
     backgroundColor: Colors.primary,
+    borderColor: Colors.primary ?? "#4b7c59",
   },
 });
 

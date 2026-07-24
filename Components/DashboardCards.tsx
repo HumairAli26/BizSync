@@ -4,7 +4,7 @@ import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
 
 const DollarIcon = icons.dollarsign;
 const Products = icons.products;
@@ -32,6 +32,9 @@ const getPKRParts = (amount: number | null | undefined) => {
 };
 
 const DashboardCards = () => {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 900;
+
   const [orgId, setOrgId] = useState<string>("");
   const [todayRevenue, setTodayRevenue] = useState<number>(0);
   const [yesterdayRevenue, setYesterdayRevenue] = useState<number>(0);
@@ -133,6 +136,108 @@ const DashboardCards = () => {
 
     return unsubscribe;
   }, [orgId]);
+
+  if (isDesktop) {
+    const cards = [
+      {
+        key: "today",
+        icon: DollarIcon,
+        iconBg: "bg-green-bg",
+        iconColor: Colors.green,
+        currency: todayRevenueParts.currency,
+        value: todayRevenueParts.value,
+        label: "Today's Revenue",
+        change: (
+          <ChangeIndicator today={todayRevenue} yesterday={yesterdayRevenue} />
+        ),
+      },
+      {
+        key: "pending",
+        icon: Invoices,
+        iconBg: "bg-yellow-bg",
+        iconColor: Colors.yellow,
+        currency: null,
+        value: String(pendingInvoices),
+        label: "Pending Invoices",
+        change: null,
+      },
+      {
+        key: "products",
+        icon: Products,
+        iconBg: "bg-blue-bg",
+        iconColor: Colors.blue,
+        currency: null,
+        value: String(totalProducts),
+        label: "Total Products",
+        change: null,
+      },
+      {
+        key: "monthly",
+        icon: TrendUp,
+        iconBg: "bg-purple-bg",
+        iconColor: Colors.purple,
+        currency: monthlyRevenueParts.currency,
+        value: monthlyRevenueParts.value,
+        label: "Monthly Revenue",
+        change: null,
+      },
+    ];
+
+    return (
+      <View style={{ flexDirection: "row", gap: 16 }}>
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <View
+              key={card.key}
+              className="home-balance-card"
+              style={{ flex: 1, paddingVertical: 28, paddingHorizontal: 26 }}
+            >
+              <View className="flex-row items-center justify-between">
+                <View
+                  style={{ borderRadius: 14, width: 52, height: 52 }}
+                  className={`items-center justify-center ${card.iconBg}`}
+                >
+                  <Icon color={card.iconColor} size={24} />
+                </View>
+                {card.change}
+              </View>
+
+              <View
+                style={{
+                  marginTop: 22,
+                  flexDirection: "row",
+                  alignItems: "flex-end",
+                }}
+              >
+                {card.currency && (
+                  <Text
+                    style={{ fontSize: 16, marginRight: 6, lineHeight: 20 }}
+                    className="home-balance-amount"
+                  >
+                    {card.currency}
+                  </Text>
+                )}
+                <Text
+                  style={{ fontSize: 34, lineHeight: 38 }}
+                  className="home-balance-amount"
+                >
+                  {card.value}
+                </Text>
+              </View>
+
+              <Text
+                style={{ fontSize: 14, marginTop: 6 }}
+                className="text-text-muted"
+              >
+                {card.label}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
 
   return (
     <View>
