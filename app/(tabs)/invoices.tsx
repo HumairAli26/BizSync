@@ -30,6 +30,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
@@ -38,6 +39,7 @@ const DownloadIcon = icons.download;
 const MoreIcon = icons.moreVertical ?? icons.more;
 
 const SafeAreaView = styled(RNSafeAreaView);
+const DESKTOP_BREAKPOINT = 900;
 
 type InvoiceStatus = "paid" | "pending" | "overdue" | "draft" | "partial";
 type InvoiceType = "sales" | "purchase";
@@ -184,6 +186,8 @@ let draftIdCounter = 1;
 const nextDraftId = () => String(draftIdCounter++);
 
 const InvoicesScreen = () => {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= DESKTOP_BREAKPOINT;
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | InvoiceStatus>("all");
 
@@ -1068,7 +1072,25 @@ const InvoicesScreen = () => {
       {/* Search */}
       <View
         className="search-container"
-        style={{ flexDirection: "row", alignItems: "center" }}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          // On wide desktop windows this row can stretch far beyond the
+          // pill's intended size, which is what was pushing the icon
+          // outside the rounded box. Capping the width and giving the
+          // row its own fixed height/overflow keeps the icon locked
+          // inside the search bar on desktop while leaving mobile as-is.
+          ...(isDesktop
+            ? {
+                alignSelf: "flex-start",
+                width: "100%",
+                maxWidth: 420,
+                height: 48,
+                overflow: "hidden",
+                marginBottom: 24,
+              }
+            : null),
+        }}
       >
         <SearchIcon
           color={Colors.textMuted}

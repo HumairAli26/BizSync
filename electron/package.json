@@ -1,0 +1,35 @@
+{
+  "name": "BizSync",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.bizsync.desktop",
+    "productName": "BizSync",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "**/*",
+      "!release/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "dist/favicon.ico"
+    }
+  },
+  "allowScripts": {
+    "electron@37.10.3": true
+  },
+  "dependencies": {
+    "express": "^4.22.2"
+  }
+}
