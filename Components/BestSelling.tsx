@@ -2,7 +2,9 @@ import { auth, db } from "@/config/firebaseConfig";
 import { Spacing } from "@/constants/theme";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import React, { useEffect, useMemo, useState } from "react";
-import { Text, View } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
+
+const DESKTOP_BREAKPOINT = 900;
 
 type InvoiceItem = {
   name: string;
@@ -53,9 +55,10 @@ const formatPKR = (amount: number | string | null | undefined) => {
 
 const normalize = (s: string) => s.trim().toLowerCase();
 
-// Best Selling — ranks products by total quantity sold across all invoice
-// line items, then cross-references live stock/price from the products collection.
 const BestSelling = () => {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= DESKTOP_BREAKPOINT;
+
   const [orgId, setOrgId] = useState<string>("");
   const [invoices, setInvoices] = useState<InvoiceLike[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -148,7 +151,7 @@ const BestSelling = () => {
   }
 
   return (
-    <View style={{ gap: 14 }}>
+    <View style={{ gap: isDesktop ? 14 : 0 }}>
       {bestSelling.map((item, index) => {
         const status =
           typeof item.stock === "number" ? getStatus(item.stock) : null;
@@ -181,10 +184,11 @@ const BestSelling = () => {
                     #{index + 1}
                   </Text>
                 </View>
-                <View>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text
                     className="text-text font-inter-bold"
-                    style={{ fontSize: Spacing[5] }}
+                    style={{ fontSize: isDesktop ? Spacing[5] : 15 }}
+                    numberOfLines={1}
                   >
                     {item.name}
                   </Text>
@@ -193,7 +197,7 @@ const BestSelling = () => {
                   </Text>
                 </View>
               </View>
-              <View style={{ alignItems: "flex-end" }}>
+              <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
                 {item.price !== undefined && (
                   <Text
                     className="text-text font-inter-bold"

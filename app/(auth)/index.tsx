@@ -34,14 +34,14 @@ const basic = () => {
           className="items-center text-lg text-text bg-primary p-2 rounded-lg"
           style={{ borderRadius: 12, paddingHorizontal: 24 }}
         >
-          <Text style={{ paddingHorizontal: 16 }}>Join an Organization</Text>
+          <Text style={{ paddingHorizontal: 16 }}>Sign In</Text>
         </Link>
         <Link
           href="/(auth)/sign-up"
           className="items-center text-lg text-text bg-primary p-2 rounded-lg"
           style={{ borderRadius: 12, paddingHorizontal: 16 }}
         >
-          <Text style={{ paddingHorizontal: 16 }}>Create an Organization</Text>
+          <Text style={{ paddingHorizontal: 16 }}>Sign Up</Text>
         </Link>
       </View>
     </View>

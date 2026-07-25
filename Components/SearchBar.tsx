@@ -13,6 +13,11 @@ const SearchBar = () => {
       style={{
         flexDirection: "row",
         alignItems: "center",
+        // Explicit vertical padding overrides whatever "search-container"
+        // sets, so this bar doesn't add extra breathing room on top of
+        // the gap the dashboard's layout already provides between sections.
+        paddingVertical: 14,
+        marginVertical: 0,
       }}
     >
       {/*

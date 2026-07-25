@@ -29,11 +29,13 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SearchIcon = icons.search;
 const SafeAreaView = styled(RNSafeAreaView);
+const DESKTOP_BREAKPOINT = 900;
 
 type Product = {
   id: string;
@@ -64,6 +66,8 @@ const getStatus = (stock: number) => {
 };
 
 const ProductsScreen = () => {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= DESKTOP_BREAKPOINT;
   const [search, setSearch] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -386,7 +390,7 @@ const ProductsScreen = () => {
       {/* Product list / empty state */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 10 }}
+        contentContainerStyle={{ paddingBottom: isDesktop ? 10 : 120 }}
       >
         {loading ? (
           <View className="items-center justify-center py-20">

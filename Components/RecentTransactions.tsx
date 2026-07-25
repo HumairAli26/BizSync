@@ -50,10 +50,7 @@ const timeAgo = (timestamp: number) => {
   return `${days}d ago`;
 };
 
-// Recent Transactions — reads the real `sales` collection.
 type RecentTransactionsProps = {
-  // Route to navigate to when "See All" is pressed. Update this to match
-  // whatever your full-transactions screen is registered as in app/.
   seeAllHref?: string;
 };
 
@@ -133,13 +130,6 @@ const RecentTransactions = ({
         padding: 20,
       }}
     >
-      {/*
-        A plain ScrollView instead of FlatList: this component sits inside a
-        parent ScrollView, and nesting a FlatList (VirtualizedList) inside a
-        ScrollView of the same orientation breaks scroll gestures in RN.
-        A regular ScrollView nests safely and scrolls independently within
-        its fixed height because the parent hands it the touch responder.
-      */}
       <ScrollView
         style={{ flex: 1 }}
         nestedScrollEnabled
@@ -148,7 +138,6 @@ const RecentTransactions = ({
         {transactions.map((t, index) => {
           const isOutgoing = t.amount < 0 || t.type === "purchase_payment";
           const amountColor = isOutgoing ? Colors.yellow : Colors.green;
-          const iconBgClass = isOutgoing ? "bg-yellow-bg" : "bg-green-bg";
           const Icon = isOutgoing ? MoveDownRight : MoveUPRight;
           const amountText = `${isOutgoing ? "-" : "+"}${formatPKR(Math.abs(t.amount))}`;
           const descriptor = isOutgoing
@@ -174,21 +163,9 @@ const RecentTransactions = ({
                   <Icon color={amountColor} size={20} />
                 </View>
 
-                {/* Amount stays on the left, with more breathing room. */}
-                <View style={{ width: 120, flexShrink: 0 }}>
-                  <Text
-                    style={{ color: amountColor, fontSize: 18 }}
-                    className="font-inter-bold"
-                    numberOfLines={1}
-                  >
-                    {amountText}
-                  </Text>
-                </View>
-
-                {/* Name + descriptor column. */}
                 <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
                   <Text
-                    style={{ fontSize: Spacing[5] }}
+                    style={{ fontSize: isDesktop ? Spacing[5] : 15 }}
                     className="text-text font-inter-bold"
                     numberOfLines={1}
                   >
@@ -200,6 +177,16 @@ const RecentTransactions = ({
                     numberOfLines={1}
                   >
                     {descriptor} · {timeAgo(t.createdAt)}
+                  </Text>
+                </View>
+
+                <View style={{ flexShrink: 0, alignItems: "flex-end" }}>
+                  <Text
+                    style={{ color: amountColor, fontSize: 18 }}
+                    className="font-inter-bold"
+                    numberOfLines={1}
+                  >
+                    {amountText}
                   </Text>
                 </View>
               </View>

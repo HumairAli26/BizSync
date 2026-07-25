@@ -29,11 +29,14 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
+
+const DESKTOP_BREAKPOINT = 900;
 
 interface TeamMember {
   id: string;
@@ -43,6 +46,8 @@ interface TeamMember {
 }
 
 const Settings = () => {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= DESKTOP_BREAKPOINT;
   const [userName, setUserName] = useState<string>("");
   const [orgName, setOrgName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
@@ -275,7 +280,7 @@ const Settings = () => {
   return (
     <SafeAreaView className="flex-1 bg-background p-5">
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 10 }}
+        contentContainerStyle={{ paddingBottom: isDesktop ? 10 : 120 }}
         showsVerticalScrollIndicator={false}
       >
         <Text

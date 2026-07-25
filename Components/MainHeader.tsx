@@ -5,10 +5,18 @@ import { getGreeting } from "@/lib/greetings";
 import { Link } from "expo-router";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import {
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from "react-native";
 
 const greeting = getGreeting();
 const BellIcon = icons.bell;
+const DESKTOP_BREAKPOINT = 900;
 
 type ProductLike = { id: string; name?: string; stock?: number | string };
 type InvoiceLike = {
@@ -28,6 +36,9 @@ type NotificationItem = {
 };
 
 const MainHeader = () => {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= DESKTOP_BREAKPOINT;
+
   const [userName, setUserName] = useState<string>("");
   const [orgId, setOrgId] = useState<string>("");
   const [products, setProducts] = useState<ProductLike[]>([]);
@@ -124,7 +135,7 @@ const MainHeader = () => {
   }, [products, invoices]);
 
   return (
-    <View className="home-header">
+    <View className="home-header" style={{ marginBottom: isDesktop ? 16 : 4 }}>
       <View className="flex-row justify-between items-center w-full">
         <View>
           <Text style={{ fontSize: Spacing[4] }} className=" text-text-muted">
