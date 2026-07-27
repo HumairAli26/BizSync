@@ -218,169 +218,173 @@ export default function SignUpScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={20} color="#fff" />
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Create account</Text>
-      <Text style={styles.subtitle}>Set up or join a BizSync organization</Text>
-
-      <View style={styles.modeRow}>
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === "create" && styles.modeBtnActive]}
-          onPress={() => setMode("create")}
-        >
-          <Text
-            style={[
-              styles.modeBtnText,
-              mode === "create" && styles.modeBtnTextActive,
-            ]}
-          >
-            Create organization
-          </Text>
+      <View style={styles.formWrapper}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === "join" && styles.modeBtnActive]}
-          onPress={() => setMode("join")}
-        >
-          <Text
-            style={[
-              styles.modeBtnText,
-              mode === "join" && styles.modeBtnTextActive,
-            ]}
+
+        <Text style={styles.title}>Create account</Text>
+        <Text style={styles.subtitle}>
+          Set up or join a BizSync organization
+        </Text>
+
+        <View style={styles.modeRow}>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === "create" && styles.modeBtnActive]}
+            onPress={() => setMode("create")}
           >
-            Join organization
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Text
+              style={[
+                styles.modeBtnText,
+                mode === "create" && styles.modeBtnTextActive,
+              ]}
+            >
+              Create organization
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === "join" && styles.modeBtnActive]}
+            onPress={() => setMode("join")}
+          >
+            <Text
+              style={[
+                styles.modeBtnText,
+                mode === "join" && styles.modeBtnTextActive,
+              ]}
+            >
+              Join organization
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      <Text style={styles.label}>Full name</Text>
-      <View style={styles.inputWrap}>
-        <Ionicons
-          name="person-outline"
-          size={18}
-          color="#888"
-          style={styles.icon}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Your name"
-          placeholderTextColor="#666"
-          value={name}
-          onChangeText={setName}
-        />
-      </View>
-
-      {mode === "create" ? (
-        <>
-          <Text style={styles.label}>Organization name</Text>
-          <View style={styles.inputWrap}>
-            <Ionicons
-              name="business-outline"
-              size={18}
-              color="#888"
-              style={styles.icon}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Acme Inc."
-              placeholderTextColor="#666"
-              value={orgName}
-              onChangeText={setOrgName}
-            />
-          </View>
-        </>
-      ) : (
-        <>
-          <Text style={styles.label}>Organization code</Text>
-          <View style={styles.inputWrap}>
-            <Ionicons
-              name="key-outline"
-              size={18}
-              color="#888"
-              style={styles.icon}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. A7F3K9"
-              placeholderTextColor="#666"
-              autoCapitalize="characters"
-              autoCorrect={false}
-              value={joinOrgCode}
-              onChangeText={(value) =>
-                setJoinOrgCode(value.replace(/\s+/g, ""))
-              }
-            />
-          </View>
-        </>
-      )}
-
-      <Text style={styles.label}>Email address</Text>
-      <View style={styles.inputWrap}>
-        <Ionicons
-          name="mail-outline"
-          size={18}
-          color="#888"
-          style={styles.icon}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="you@company.com"
-          placeholderTextColor="#666"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoCorrect={false}
-          value={email}
-          onChangeText={setEmail}
-        />
-      </View>
-
-      <Text style={styles.label}>Password</Text>
-      <View style={styles.inputWrap}>
-        <Ionicons
-          name="lock-closed-outline"
-          size={18}
-          color="#888"
-          style={styles.icon}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="••••••••"
-          placeholderTextColor="#666"
-          secureTextEntry={!showPassword}
-          value={password}
-          onChangeText={setPassword}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+        <Text style={styles.label}>Full name</Text>
+        <View style={styles.inputWrap}>
           <Ionicons
-            name={showPassword ? "eye-off-outline" : "eye-outline"}
+            name="person-outline"
             size={18}
             color="#888"
+            style={styles.icon}
           />
+          <TextInput
+            style={styles.input}
+            placeholder="Your name"
+            placeholderTextColor="#666"
+            value={name}
+            onChangeText={setName}
+          />
+        </View>
+
+        {mode === "create" ? (
+          <>
+            <Text style={styles.label}>Organization name</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons
+                name="business-outline"
+                size={18}
+                color="#888"
+                style={styles.icon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Acme Inc."
+                placeholderTextColor="#666"
+                value={orgName}
+                onChangeText={setOrgName}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.label}>Organization code</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons
+                name="key-outline"
+                size={18}
+                color="#888"
+                style={styles.icon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. A7F3K9"
+                placeholderTextColor="#666"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                value={joinOrgCode}
+                onChangeText={(value) =>
+                  setJoinOrgCode(value.replace(/\s+/g, ""))
+                }
+              />
+            </View>
+          </>
+        )}
+
+        <Text style={styles.label}>Email address</Text>
+        <View style={styles.inputWrap}>
+          <Ionicons
+            name="mail-outline"
+            size={18}
+            color="#888"
+            style={styles.icon}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="you@company.com"
+            placeholderTextColor="#666"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoCorrect={false}
+            value={email}
+            onChangeText={setEmail}
+          />
+        </View>
+
+        <Text style={styles.label}>Password</Text>
+        <View style={styles.inputWrap}>
+          <Ionicons
+            name="lock-closed-outline"
+            size={18}
+            color="#888"
+            style={styles.icon}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="••••••••"
+            placeholderTextColor="#666"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <Ionicons
+              name={showPassword ? "eye-off-outline" : "eye-outline"}
+              size={18}
+              color="#888"
+            />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleSignUp}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading
+              ? "Creating..."
+              : mode === "join"
+                ? "Join Organization"
+                : "Sign Up"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.push("/(auth)/sign-in")}>
+          <Text style={styles.footerText}>
+            Already have an account? <Text style={styles.link}>Sign in</Text>
+          </Text>
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleSignUp}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading
-            ? "Creating..."
-            : mode === "join"
-              ? "Join Organization"
-              : "Sign Up"}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={() => router.push("/(auth)/sign-in")}>
-        <Text style={styles.footerText}>
-          Already have an account? <Text style={styles.link}>Sign in</Text>
-        </Text>
-      </TouchableOpacity>
     </KeyboardAvoidingView>
   );
 }
@@ -391,6 +395,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#0d0d0d",
     padding: 24,
     paddingTop: 60,
+    alignItems: "center",
+  },
+  formWrapper: {
+    width: "100%",
+    maxWidth: 440,
   },
   backBtn: {
     width: 40,
