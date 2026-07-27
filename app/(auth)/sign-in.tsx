@@ -90,103 +90,105 @@ export default function SignInScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View className="p-6 rounded-4xl items-center justify-center bg-primary">
-        <Box size={Spacing[18]} color={Colors.text} />
-      </View>
-      <Text style={styles.title}>Welcome back</Text>
-      <Text style={styles.subtitle}>Sign in to your BizSync account</Text>
-      <Text style={styles.label}>Email address</Text>
-      <View style={styles.inputWrap}>
-        <Ionicons
-          name="mail-outline"
-          size={18}
-          color="#888"
-          style={styles.icon}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="admin@bizsync.com"
-          placeholderTextColor="#666"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoCorrect={false}
-          value={email}
-          onChangeText={setEmail}
-        />
-      </View>
-      <View style={styles.rowBetween}>
-        <Text style={styles.label}>Password</Text>
-        <TouchableOpacity>
-          <Text style={styles.forgot}>Forgot?</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.inputWrap}>
-        <Ionicons
-          name="lock-closed-outline"
-          size={18}
-          color="#888"
-          style={styles.icon}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="••••••••"
-          placeholderTextColor="#666"
-          secureTextEntry={!showPassword}
-          value={password}
-          onChangeText={setPassword}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+      <View style={styles.formWrapper}>
+        <View className="p-6 rounded-4xl items-center justify-center bg-primary">
+          <Box size={Spacing[18]} color={Colors.text} />
+        </View>
+        <Text style={styles.title}>Welcome back</Text>
+        <Text style={styles.subtitle}>Sign in to your BizSync account</Text>
+        <Text style={styles.label}>Email address</Text>
+        <View style={styles.inputWrap}>
           <Ionicons
-            name={showPassword ? "eye-off-outline" : "eye-outline"}
+            name="mail-outline"
             size={18}
             color="#888"
+            style={styles.icon}
           />
+          <TextInput
+            style={styles.input}
+            placeholder="admin@bizsync.com"
+            placeholderTextColor="#666"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoCorrect={false}
+            value={email}
+            onChangeText={setEmail}
+          />
+        </View>
+        <View style={styles.rowBetween}>
+          <Text style={styles.label}>Password</Text>
+          <TouchableOpacity>
+            <Text style={styles.forgot}>Forgot?</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.inputWrap}>
+          <Ionicons
+            name="lock-closed-outline"
+            size={18}
+            color="#888"
+            style={styles.icon}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="••••••••"
+            placeholderTextColor="#666"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <Ionicons
+              name={showPassword ? "eye-off-outline" : "eye-outline"}
+              size={18}
+              color="#888"
+            />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.label}>Organization code</Text>
+        <View style={styles.inputWrap}>
+          <Ionicons
+            name="key-outline"
+            size={18}
+            color="#888"
+            style={styles.icon}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. A7F3K9"
+            placeholderTextColor="#666"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            value={orgCode}
+            onChangeText={(value) => setOrgCode(value.replace(/\s+/g, ""))}
+          />
+        </View>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleSignIn}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? "Signing in..." : "Sign In"}
+          </Text>
+        </TouchableOpacity>
+        {/*<Text style={styles.orText}>or continue with</Text>
+        <View style={styles.socialRow}>
+          <TouchableOpacity style={styles.socialBtn}>
+            <Text style={styles.socialText}>Google</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.socialBtn}>
+            <Text style={styles.socialText}>Apple</Text>
+          </TouchableOpacity>
+        </View>
+        */}
+        <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")}>
+          <Text style={styles.footerText}>
+            Don't have an account? <Text style={styles.link}>Create one</Text>
+          </Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.label}>Organization code</Text>
-      <View style={styles.inputWrap}>
-        <Ionicons
-          name="key-outline"
-          size={18}
-          color="#888"
-          style={styles.icon}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. A7F3K9"
-          placeholderTextColor="#666"
-          autoCapitalize="characters"
-          autoCorrect={false}
-          value={orgCode}
-          onChangeText={(value) => setOrgCode(value.replace(/\s+/g, ""))}
-        />
-      </View>
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleSignIn}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? "Signing in..." : "Sign In"}
-        </Text>
-      </TouchableOpacity>
-      {/*<Text style={styles.orText}>or continue with</Text>
-      <View style={styles.socialRow}>
-        <TouchableOpacity style={styles.socialBtn}>
-          <Text style={styles.socialText}>Google</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialBtn}>
-          <Text style={styles.socialText}>Apple</Text>
-        </TouchableOpacity>
-      </View>
-      */}
-      <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")}>
-        <Text style={styles.footerText}>
-          Don't have an account? <Text style={styles.link}>Create one</Text>
-        </Text>
-      </TouchableOpacity>
     </KeyboardAvoidingView>
   );
 }
@@ -197,6 +199,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#0d0d0d",
     padding: 24,
     paddingTop: 60,
+    alignItems: "center",
+  },
+  formWrapper: {
+    width: "100%",
+    maxWidth: 440,
   },
   title: {
     color: "#fff",
