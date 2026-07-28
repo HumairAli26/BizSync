@@ -425,9 +425,9 @@ A few implementation details simplify BizSync's architecture:
 
 # 📸 Screenshots
 
-<img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 44 PM (1)" src="https://github.com/user-attachments/assets/737838b8-8056-408b-87ff-7c223681c200" /><img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 44 PM" src="https://github.com/user-attachments/assets/182d6413-4358-4f5e-8cff-fd885d9afa2f" />
-<img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 43 PM (2)" src="https://github.com/user-attachments/assets/aa954fd4-7961-426a-adda-079512e41e41" /><img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 43 PM" src="https://github.com/user-attachments/assets/d97f3c47-35b6-4f92-b1e3-17968310290c" />
-<img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 43 PM (1)" src="https://github.com/user-attachments/assets/ba60c51e-2ba3-4b44-b474-32cc0d7caf68" /><img width="720" height="1600" alt="WhatsApp Image 2026-07-26 at 10 19 42 PM (1)" src="https://github.com/user-attachments/assets/7309c0ee-b795-45f8-a340-c0489be82fc1" />
+<img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 44 PM (1)" src="https://github.com/user-attachments/assets/737838b8-8056-408b-87ff-7c223681c200" /> <img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 44 PM" src="https://github.com/user-attachments/assets/182d6413-4358-4f5e-8cff-fd885d9afa2f" />  
+<img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 43 PM (2)" src="https://github.com/user-attachments/assets/aa954fd4-7961-426a-adda-079512e41e41" /> <img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 43 PM" src="https://github.com/user-attachments/assets/d97f3c47-35b6-4f92-b1e3-17968310290c" />  
+<img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 43 PM (1)" src="https://github.com/user-attachments/assets/ba60c51e-2ba3-4b44-b474-32cc0d7caf68" /> <img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 19 42 PM (1)" src="https://github.com/user-attachments/assets/7309c0ee-b795-45f8-a340-c0489be82fc1" />  
 <img width="320" height="600" alt="WhatsApp Image 2026-07-26 at 10 30 49 PM" src="https://github.com/user-attachments/assets/76dae01b-c28e-45b7-bf19-99c9da651ced" />
 
 ---
