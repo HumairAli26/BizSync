@@ -126,7 +126,7 @@ const RevenueGraph = () => {
     >
       <View className="chart-header" style={{ alignItems: "flex-start" }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text className="chart-title" style={{ fontSize: 24 }}>
+          <Text className="chart-title" style={{ fontSize: 24, color: "#fff" }}>
             Revenue Overview
           </Text>
           <Text className="chart-subtitle">{rangeLabel}</Text>

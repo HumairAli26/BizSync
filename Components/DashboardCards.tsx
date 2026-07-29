@@ -212,14 +212,19 @@ const DashboardCards = () => {
               >
                 {card.currency && (
                   <Text
-                    style={{ fontSize: 16, marginRight: 6, lineHeight: 20 }}
+                    style={{
+                      fontSize: 16,
+                      marginRight: 6,
+                      lineHeight: 20,
+                      color: "#fff",
+                    }}
                     className="home-balance-amount"
                   >
                     {card.currency}
                   </Text>
                 )}
                 <Text
-                  style={{ fontSize: 34, lineHeight: 38 }}
+                  style={{ fontSize: 34, lineHeight: 38, color: "#fff" }}
                   className="home-balance-amount"
                 >
                   {card.value}
