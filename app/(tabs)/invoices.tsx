@@ -68,6 +68,7 @@ type Invoice = {
   items?: InvoiceItem[];
   subtotal?: number;
   discount?: number;
+  createdAt?: number;
 };
 
 type Product = {
@@ -130,9 +131,25 @@ const STATUS_TABS: { key: "all" | InvoiceStatus; label: string }[] = [
   { key: "paid", label: "Paid" },
   { key: "pending", label: "Pending" },
   { key: "partial", label: "Partial" },
-  { key: "overdue", label: "Overdue" },
   { key: "draft", label: "Draft" },
 ];
+
+// ---- Automatic Invoice Number generation ----
+const generateNextInvoiceNumber = (invoices: Invoice[]) => {
+  if (!invoices.length) return "INV-0001";
+
+  const numbers = invoices
+    .map((i) => {
+      const match = i.invoiceNumber?.match(/\d+/);
+      return match ? parseInt(match[0], 10) : 0;
+    })
+    .sort((a, b) => b - a);
+
+  return `INV-${String(numbers[0] + 1).padStart(4, "0")}`;
+};
+
+// ---- Today's date, used to prefill the date field (still editable) ----
+const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
 // ---- Pakistani Rupee formatting (Rs. 1,23,456.00 style) ----
 const formatPKR = (amount: number | null | undefined) => {
@@ -276,7 +293,7 @@ const InvoicesScreen = () => {
     const q = query(
       collection(db, "invoices"),
       where("orgId", "==", orgId),
-      orderBy("date", "desc"),
+      orderBy("createdAt", "desc"),
     );
     const unsubscribe = onSnapshot(
       q,
@@ -349,7 +366,10 @@ const InvoicesScreen = () => {
           inv.invoiceNumber.toLowerCase().includes(q),
       );
     }
-    return list;
+    // Newest-created invoice always stays on top, regardless of its
+    // (editable) invoice date. This mirrors the Firestore orderBy but is
+    // kept here too so the ordering holds even if that index is rebuilding.
+    return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
   }, [invoices, activeTab, search]);
 
   // Stats now use balance due (not the full invoice amount) for anything still
@@ -409,8 +429,8 @@ const InvoicesScreen = () => {
   const resetAddModal = () => {
     setNewInvoice({
       client: "",
-      invoiceNumber: "",
-      date: "",
+      invoiceNumber: generateNextInvoiceNumber(invoices),
+      date: getTodayDate(),
       status: "pending",
       discount: "",
     });
@@ -521,8 +541,8 @@ const InvoicesScreen = () => {
   const resetPurchaseModal = () => {
     setNewPurchaseInvoice({
       vendor: "",
-      invoiceNumber: "",
-      date: "",
+      invoiceNumber: generateNextInvoiceNumber(invoices),
+      date: getTodayDate(),
       amount: "",
       status: "pending",
     });
@@ -1211,7 +1231,7 @@ const InvoicesScreen = () => {
         Padding/border-radius/text color are now set directly inline so
         they always apply, on every platform.
       */}
-      <View className="flex-row flex-wrap items-center mt-5" style={{ gap: 8 }}>
+      <View className="flex-row flex-wrap items-center mt-5" style={{ gap: 6 }}>
         {STATUS_TABS.map((tab) => {
           const isActive = activeTab === tab.key;
           return (
