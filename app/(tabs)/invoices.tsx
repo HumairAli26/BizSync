@@ -264,7 +264,8 @@ const InvoicesScreen = () => {
   // single-creator signature block (System.User.Name).
   const [signedInUserName, setSignedInUserName] = useState<string>("");
 
-  // Fetch the current user's org info
+  // Fetch the current user's own info (own orgId + display name only —
+  // NOT the org's address/phone/NTN/etc, which live on the admin's doc).
   React.useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -272,13 +273,6 @@ const InvoicesScreen = () => {
     const unsubscribe = onSnapshot(doc(db, "users", uid), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        setOrgName(data.orgName ?? "");
-        setOrgEmail(data.orgEmail ?? "");
-        setOrgPhone(data.orgPhone ?? "");
-        setOrgCell(data.orgCell ?? "");
-        setOrgAddress(data.orgAddress ?? "");
-        setOrgNtn(data.orgNtn ?? "");
-        setOrgSalesTaxNo(data.orgSalesTaxNo ?? "");
         setOrgId(data.orgId ?? "");
         setSignedInUserName(data.name ?? auth.currentUser?.displayName ?? "");
       }
@@ -286,6 +280,43 @@ const InvoicesScreen = () => {
 
     return unsubscribe;
   }, []);
+
+  // Fetch org-level branding (address/phone/cell/NTN/sales tax no, org name,
+  // org email) from the ORG ADMIN's account, not the signed-in user's own
+  // account. Settings.tsx only ever saves these fields to the admin's own
+  // user doc (updateDoc(doc(db, "users", adminUid), {...})), so a
+  // non-admin member's own user doc never has them — that's why invoices
+  // printed from a member's account were missing the address/contact
+  // details. Looking them up from whichever teammate has role "admin"
+  // fixes this for every account in the org.
+  React.useEffect(() => {
+    if (!orgId) return;
+    const q = query(
+      collection(db, "users"),
+      where("orgId", "==", orgId),
+      where("role", "==", "admin"),
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const adminDoc = snapshot.docs[0];
+        if (adminDoc) {
+          const data = adminDoc.data();
+          setOrgName(data.orgName ?? "");
+          setOrgEmail(data.orgEmail ?? "");
+          setOrgPhone(data.orgPhone ?? "");
+          setOrgCell(data.orgCell ?? "");
+          setOrgAddress(data.orgAddress ?? "");
+          setOrgNtn(data.orgNtn ?? "");
+          setOrgSalesTaxNo(data.orgSalesTaxNo ?? "");
+        }
+      },
+      (error) => {
+        console.error("Org admin details listener error:", error);
+      },
+    );
+    return () => unsubscribe();
+  }, [orgId]);
 
   // Real-time Firestore listener for invoices
   React.useEffect(() => {
@@ -591,7 +622,11 @@ const InvoicesScreen = () => {
 
   // Resolves each drafted row against the products collection:
   // - sales invoice: uses existing product price, decrements stock, never overwrites price
-  // - purchase invoice: uses existing product price, increments stock, can update price when entered
+  // - purchase invoice: uses existing product price unless a manual price is
+  //   entered on THIS invoice (in which case that manual price is used for
+  //   the invoice's own line total only), increments stock. It never writes
+  //   back to the product's stored price — a purchase invoice is a record
+  //   of what was actually paid for that batch, not a price update.
   // - no match -> auto-creates the product (sku + name = whatever was typed),
   //   leaves price/stock at 0 until filled in
   const processInvoiceItems = async (
@@ -621,11 +656,13 @@ const InvoicesScreen = () => {
 
       if (match) {
         const dbPrice = Number(match.price ?? 0);
+        // Use the manual price entered for the invoice item, otherwise fallback to DB price
         const unitPrice = hasManualPrice ? parsedManualPrice : dbPrice;
         const lineTotal = quantity * unitPrice;
 
         const productUpdates: Record<string, string | number> = {};
 
+        // Handle stock adjustments only
         if (match.stock !== null && match.stock !== undefined) {
           const currentStock = Number(match.stock) || 0;
           productUpdates.stock = isPurchase
@@ -633,15 +670,15 @@ const InvoicesScreen = () => {
             : Math.max(0, currentStock - quantity);
         }
 
-        if (isPurchase && hasManualPrice && unitPrice !== dbPrice) {
-          productUpdates.price = unitPrice;
-        }
+        // NOTE: We intentionally REMOVED the block that updates match.price
+        // so purchase or sales invoices use the entered price strictly for the
+        // invoice line item without altering the master product catalog price.
 
         if (Object.keys(productUpdates).length > 0) {
           try {
             await updateDoc(doc(db, "products", match.id), productUpdates);
           } catch (error) {
-            console.error("Error updating product:", error);
+            console.error("Error updating product stock:", error);
           }
         }
 
@@ -657,8 +694,7 @@ const InvoicesScreen = () => {
 
         total += lineTotal;
       } else {
-        // Product not found -> create it automatically, scoped to this org.
-        // Use the manual price if given, otherwise fall back to 0.
+        // Product not found -> auto-create it with the entered price (or 0)
         const unitPrice = hasManualPrice ? parsedManualPrice : 0;
         const lineTotal = quantity * unitPrice;
 
@@ -2328,8 +2364,9 @@ const InvoicesScreen = () => {
               className="text-text-muted font-inter"
               style={{ fontSize: 12, marginBottom: 14 }}
             >
-              Leave price blank to use the price on file. Enter a price to
-              override it for this invoice - this also updates the product's
+              Leave price blank to use the price on file for this item. Enter a
+              price to record what you actually paid on this purchase invoice —
+              it only affects this invoice and never changes the product's
               stored price.
             </Text>
 

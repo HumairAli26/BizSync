@@ -434,13 +434,6 @@ export async function generateAndShareInvoicePdf(
 ): Promise<void> {
   const html = buildInvoiceHtml(data);
 
-  // expo-print's web implementation does NOT render the `html` we pass it —
-  // per Expo's own docs, "on web this prints the HTML from the current
-  // page." That means Print.printToFileAsync() on web silently ignores our
-  // invoice template and instead opens the print dialog on whatever screen
-  // is currently rendered (the Invoices list), which is the bug being
-  // reported here. So on web we bypass expo-print entirely and print our
-  // own isolated document instead.
   if (Platform.OS === "web") {
     await printHtmlInIsolatedWindow(html, data.invoiceNumber);
     return;
@@ -472,10 +465,6 @@ export async function generateAndShareInvoicePdf(
   }
 }
 
-// Opens a blank window synchronously (so browsers don't block it as a
-// popup), writes only the invoice HTML into it, and triggers that isolated
-// window's print dialog — where the person can choose "Save as PDF". This
-// guarantees only the invoice content is printed, never the app UI behind it.
 function printHtmlInIsolatedWindow(
   html: string,
   invoiceNumber: string,
@@ -506,9 +495,6 @@ function printHtmlInIsolatedWindow(
       resolve();
     };
 
-    // Prefer waiting for the new document to finish loading so the browser
-    // doesn't print a blank page, but fall back to a short timeout in case
-    // onload doesn't fire reliably after document.write() in some browsers.
     printWindow.onload = triggerPrint;
     setTimeout(triggerPrint, 300);
   });
