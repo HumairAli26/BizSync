@@ -87,7 +87,10 @@ const Settings = () => {
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  // Load current user doc
+  // Load current user doc — personal fields only. Org name and details are
+  // NOT read here: they live on the shared organizations doc (see the next
+  // effect), so every member of the org sees the identical values instead
+  // of only whoever happens to have saved them on their own account.
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -95,22 +98,38 @@ const Settings = () => {
     const unsubscribe = onSnapshot(doc(db, "users", uid), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        setOrgName(data.orgName);
         setUserName(data.name);
         setUserEmail(data.email);
         setOrgCode(data.orgCode);
         setOrgId(data.orgId);
         setRole(data.role);
-        setOrgAddress(data.orgAddress ?? "");
-        setOrgPhone(data.orgPhone ?? "");
-        setOrgCell(data.orgCell ?? "");
-        setOrgNtn(data.orgNtn ?? "");
-        setOrgSalesTaxNo(data.orgSalesTaxNo ?? "");
       }
     });
 
     return unsubscribe;
   }, []);
+
+  // Org name + contact details — shared across the whole organization.
+  useEffect(() => {
+    if (!orgId) return;
+
+    const unsubscribe = onSnapshot(
+      doc(db, "organizations", orgId),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setOrgName(data.name ?? "");
+          setOrgAddress(data.address ?? "");
+          setOrgPhone(data.phone ?? "");
+          setOrgCell(data.cell ?? "");
+          setOrgNtn(data.ntn ?? "");
+          setOrgSalesTaxNo(data.salesTaxNo ?? "");
+        }
+      },
+    );
+
+    return unsubscribe;
+  }, [orgId]);
 
   // Load team members once we know the orgId
   useEffect(() => {
@@ -165,8 +184,14 @@ const Settings = () => {
   };
 
   const handleSaveOrgDetails = async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    if (role !== "admin") {
+      Alert.alert(
+        "Admins only",
+        "Only an organization admin can update these details.",
+      );
+      return;
+    }
+    if (!orgId) return;
 
     const phone = orgPhoneDraft.trim();
     if (phone && !/^[+\d][\d\s-]{7,}$/.test(phone)) {
@@ -182,12 +207,12 @@ const Settings = () => {
 
     setSavingOrgDetails(true);
     try {
-      await updateDoc(doc(db, "users", uid), {
-        orgAddress: orgAddressDraft.trim(),
-        orgPhone: orgPhoneDraft.trim(),
-        orgCell: orgCellDraft.trim(),
-        orgNtn: orgNtnDraft.trim(),
-        orgSalesTaxNo: orgSalesTaxNoDraft.trim(),
+      await updateDoc(doc(db, "organizations", orgId), {
+        address: orgAddressDraft.trim(),
+        phone: orgPhoneDraft.trim(),
+        cell: orgCellDraft.trim(),
+        ntn: orgNtnDraft.trim(),
+        salesTaxNo: orgSalesTaxNoDraft.trim(),
       });
       setEditOrgDetailsVisible(false);
     } catch (err: any) {
