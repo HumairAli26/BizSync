@@ -3,12 +3,12 @@ import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
 import { useRouter } from "expo-router";
 import {
-    collection,
-    doc,
-    onSnapshot,
-    orderBy,
-    query,
-    where,
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import { ScrollView, Text, useWindowDimensions, View } from "react-native";
@@ -123,9 +123,8 @@ const RecentTransactions = ({
     <View
       className="rounded-3xl border border-border-light bg-background p-3"
       style={{
-        minHeight: 380,
-        height: isDesktop ? 420 : undefined,
-        maxHeight: isDesktop ? 420 : undefined,
+        height: isDesktop ? 420 : 380,
+        maxHeight: isDesktop ? 420 : 380,
         overflow: "hidden",
         padding: 20,
       }}
@@ -133,7 +132,7 @@ const RecentTransactions = ({
       <ScrollView
         style={{ flex: 1 }}
         nestedScrollEnabled
-        showsVerticalScrollIndicator={true}
+        showsVerticalScrollIndicator={false}
       >
         {transactions.map((t, index) => {
           const isOutgoing = t.amount < 0 || t.type === "purchase_payment";

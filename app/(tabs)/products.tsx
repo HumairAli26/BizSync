@@ -24,6 +24,7 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   Modal,
+  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -108,11 +109,21 @@ const ProductsScreen = () => {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Product, "id">),
-          stock: Number((d.data() as Omit<Product, "id">).stock ?? 0) || 0,
-        }));
+        // Normalize every field so a doc missing name/sku/category can
+        // never crash the search filter below (was causing the search
+        // bar to "exit the app" as soon as you typed anything).
+        const data = snapshot.docs.map((d) => {
+          const raw = d.data() as Partial<Product>;
+          return {
+            id: d.id,
+            name: raw.name ?? "",
+            sku: raw.sku ?? "",
+            skuUpper: raw.skuUpper ?? "",
+            category: raw.category ?? "Uncategorized",
+            price: raw.price ?? "0",
+            stock: Number(raw.stock ?? 0) || 0,
+          } as Product;
+        });
         setProducts(data);
         setLoading(false);
       },
@@ -129,9 +140,9 @@ const ProductsScreen = () => {
     const q = search.toLowerCase();
     return products.filter(
       (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q),
+        (p.name ?? "").toLowerCase().includes(q) ||
+        (p.sku ?? "").toLowerCase().includes(q) ||
+        (p.category ?? "").toLowerCase().includes(q),
     );
   }, [products, search]);
 
@@ -268,21 +279,33 @@ const ProductsScreen = () => {
     }
   };
 
+  // Delete now branches by platform: Alert.alert's multi-button config is a
+  // native-only API. On web/Electron it either no-ops or falls back to a
+  // plain alert with no callbacks, so "Delete" never actually fired on
+  // desktop. window.confirm gives us a real yes/no on web.
   const handleDelete = (id: string) => {
-    Alert.alert("Delete product", "This can't be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteDoc(doc(db, "products", id));
-          } catch (error) {
-            console.error("Error deleting product:", error);
-          }
+    const doDelete = async () => {
+      try {
+        await deleteDoc(doc(db, "products", id));
+      } catch (error) {
+        console.error("Error deleting product:", error);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("Delete this product? This can't be undone.")) {
+        doDelete();
+      }
+    } else {
+      Alert.alert("Delete product", "This can't be undone.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: doDelete,
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   const toggleExpand = (id: string) => {
@@ -326,9 +349,20 @@ const ProductsScreen = () => {
         </View>
       </View>
 
-      {/* Search */}
-      <View className="search-container">
-        <SearchIcon color={Colors.textMuted} className="search-icon" />
+      {/* Search — replaced the "search-container"/"search-icon" classes with
+          inline styles so the icon reliably sits inside the bar regardless
+          of what those global classes resolve to. */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: "rgba(255,255,255,0.05)",
+          borderRadius: 12,
+          paddingHorizontal: 12,
+          marginBottom: Spacing[4],
+        }}
+      >
+        <SearchIcon color={Colors.textMuted} style={{ marginRight: 8 }} />
         <TextInput
           placeholder="Search products..."
           placeholderTextColor={Colors.textMuted}
@@ -339,7 +373,7 @@ const ProductsScreen = () => {
             flex: 1,
             fontSize: Spacing[4],
             color: Colors.text,
-            paddingVertical: 0,
+            paddingVertical: 10,
           }}
         />
       </View>
@@ -440,14 +474,6 @@ const ProductsScreen = () => {
                   marginBottom: 12,
                 }}
               >
-                {/* Only the header row toggles expand/collapse now — same
-                    fix as invoices.tsx. Previously the ENTIRE card was one
-                    TouchableOpacity, so tapping Edit inside it relied on
-                    stopPropagation() to avoid also re-triggering the card's
-                    own collapse toggle. That's reliable on native mobile,
-                    but not guaranteed on web, where the outer toggle could
-                    still fire right after Edit — making editing look like
-                    it did nothing. */}
                 <TouchableOpacity
                   activeOpacity={0.8}
                   onPress={() => toggleExpand(product.id)}
