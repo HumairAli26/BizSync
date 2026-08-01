@@ -97,9 +97,12 @@ const RevenueGraph = () => {
         if (idx !== -1) totals[idx] += amount;
       });
 
+      // Never plot a negative month — a month where refunds/purchase
+      // payments outweigh revenue just floors at 0 instead of dipping
+      // below the axis.
       setData(
         months.map((m, i) => ({
-          value: totals[i],
+          value: Math.max(totals[i], 0),
           label: m.label,
         })),
       );
