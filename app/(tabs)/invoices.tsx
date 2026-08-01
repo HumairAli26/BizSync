@@ -23,6 +23,7 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -391,10 +392,15 @@ const InvoicesScreen = () => {
     }
     if (search.trim()) {
       const q = search.toLowerCase();
+      // Guarded with `?? ""` — client/invoiceNumber are required at
+      // creation, but a legacy or manually-edited Firestore doc missing
+      // either would otherwise throw on .toLowerCase() the instant you
+      // typed anything, crashing the screen (same bug fixed earlier on
+      // the Products screen).
       list = list.filter(
         (inv) =>
-          inv.client.toLowerCase().includes(q) ||
-          inv.invoiceNumber.toLowerCase().includes(q),
+          (inv.client ?? "").toLowerCase().includes(q) ||
+          (inv.invoiceNumber ?? "").toLowerCase().includes(q),
       );
     }
     // Newest-created invoice always stays on top, regardless of its
@@ -938,21 +944,33 @@ const InvoicesScreen = () => {
     }
   };
 
+  // Delete now branches by platform: Alert.alert's multi-button config is a
+  // native-only API. On web/Electron it either no-ops or falls back to a
+  // plain alert with no callbacks, so "Delete" never actually fired on
+  // desktop. window.confirm gives us a real yes/no on web.
   const handleDelete = (id: string) => {
-    Alert.alert("Delete invoice", "This can't be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteDoc(doc(db, "invoices", id));
-          } catch (error) {
-            console.error("Error deleting invoice:", error);
-          }
+    const doDelete = async () => {
+      try {
+        await deleteDoc(doc(db, "invoices", id));
+      } catch (error) {
+        console.error("Error deleting invoice:", error);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("Delete this invoice? This can't be undone.")) {
+        doDelete();
+      }
+    } else {
+      Alert.alert("Delete invoice", "This can't be undone.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: doDelete,
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   // One-tap: settles whatever balance remains on the invoice in a single payment.
@@ -996,6 +1014,8 @@ const InvoicesScreen = () => {
   // Records a partial (or full) payment against an invoice: reduces the
   // balance due, flips status to "partial" or "paid" as appropriate, and logs
   // a real sale so the dashboard/revenue graph reflect money actually collected.
+  // Works identically for sales and purchase invoices — getSignedAmount and
+  // the "type" field below take care of the sign/labeling difference.
   const handleRecordPayment = async () => {
     if (!paymentInvoice) return;
 
@@ -1489,7 +1509,12 @@ const InvoicesScreen = () => {
                   </View>
                 </View>
 
-                {/* Payment actions */}
+                {/* Payment actions — shown for BOTH sales and purchase
+                    invoices whenever a balance can still be paid down.
+                    canTakePayment intentionally doesn't check invoice.type,
+                    so Record Payment/Mark Paid already work for purchase
+                    invoices once one exists in a pending/overdue/partial
+                    state. */}
                 {canTakePayment && (
                   <View className="flex-row flex-wrap gap-2 mt-3">
                     <TouchableOpacity
@@ -2149,8 +2174,9 @@ const InvoicesScreen = () => {
                 style={{ fontSize: 12, marginBottom: 14 }}
               >
                 Leave price blank to use the price on file. Enter a price to
-                override it for this invoice - this also updates the product's
-                stored price. Unrecognized SKUs/names are added as new products.
+                override it for just this invoice's line total — this never
+                changes the product's stored price. Unrecognized SKUs/names are
+                added as new products.
               </Text>
 
               <View className="flex-row flex-wrap gap-3 mt-1">
@@ -2247,45 +2273,53 @@ const InvoicesScreen = () => {
               autoCorrect={false}
               style={editInputStyle}
             />
+            {/* Added "partial" so purchase invoices have the same status
+                options as sales invoices. Note: selecting "Partial" here
+                just marks the status — like sales invoices, it doesn't
+                capture how much was already paid at creation time. Use
+                "Record Payment" after creating the invoice to log an
+                actual partial amount. */}
             <View className="flex-row flex-wrap gap-2 mb-3">
-              {(["pending", "paid"] as InvoiceStatus[]).map((statusKey) => {
-                const active = newPurchaseInvoice.status === statusKey;
-                const chipMeta = STATUS_META[statusKey];
-                return (
-                  <TouchableOpacity
-                    key={statusKey}
-                    onPress={() =>
-                      setNewPurchaseInvoice((p) => ({
-                        ...p,
-                        status: statusKey,
-                      }))
-                    }
-                    style={{
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 20,
-                      backgroundColor: active
-                        ? chipMeta.bg
-                        : "rgba(255,255,255,0.05)",
-                      borderWidth: 1,
-                      borderColor: active
-                        ? chipMeta.color
-                        : "rgba(255,255,255,0.1)",
-                    }}
-                  >
-                    <Text
+              {(["pending", "partial", "paid"] as InvoiceStatus[]).map(
+                (statusKey) => {
+                  const active = newPurchaseInvoice.status === statusKey;
+                  const chipMeta = STATUS_META[statusKey];
+                  return (
+                    <TouchableOpacity
+                      key={statusKey}
+                      onPress={() =>
+                        setNewPurchaseInvoice((p) => ({
+                          ...p,
+                          status: statusKey,
+                        }))
+                      }
                       style={{
-                        color: active ? chipMeta.color : Colors.textMuted,
-                        fontSize: 12,
-                        fontWeight: "600",
-                        textTransform: "capitalize",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 20,
+                        backgroundColor: active
+                          ? chipMeta.bg
+                          : "rgba(255,255,255,0.05)",
+                        borderWidth: 1,
+                        borderColor: active
+                          ? chipMeta.color
+                          : "rgba(255,255,255,0.1)",
                       }}
                     >
-                      {statusKey}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                      <Text
+                        style={{
+                          color: active ? chipMeta.color : Colors.textMuted,
+                          fontSize: 12,
+                          fontWeight: "600",
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {chipMeta.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                },
+              )}
             </View>
 
             <Text
