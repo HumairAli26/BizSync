@@ -4,6 +4,9 @@ import {
   Box,
   ChartNoAxesColumn,
   DollarSign,
+  Download,
+  Ellipsis,
+  EllipsisVertical,
   FileText,
   House,
   MoveDownRight,
@@ -32,6 +35,10 @@ export const icons = {
   trenddown: TrendingDown,
   moveupright: MoveUpRight,
   movedownright: MoveDownRight,
+  download: Download,
+  moreVertical: EllipsisVertical,
+  more: Ellipsis,
+  filetext: FileText,
 } as const;
 
 export type icons = keyof typeof icons;
