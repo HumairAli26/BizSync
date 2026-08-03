@@ -192,10 +192,12 @@ const findProductMatch = (products: Product[], q: string) => {
 // Returns how much of an invoice has actually been paid so far,
 // falling back gracefully for invoices created before partial payments existed.
 const getAmountPaid = (invoice: Invoice) =>
-  invoice.amountPaid ?? (invoice.status === "paid" ? invoice.amount : 0);
+  invoice.status === "paid" ? invoice.amount : (invoice.amountPaid ?? 0);
 
 const getBalanceDue = (invoice: Invoice) =>
-  Math.max(0, invoice.amount - getAmountPaid(invoice));
+  invoice.status === "paid"
+    ? 0
+    : Math.max(0, invoice.amount - getAmountPaid(invoice));
 
 const getSignedAmount = (invoice: Invoice, amount: number) =>
   invoice.type === "purchase" ? -Math.abs(amount) : Math.abs(amount);
@@ -1952,9 +1954,7 @@ const InvoicesScreen = () => {
                 marginBottom: 10,
               }}
             >
-              <Text className="text-text font-inter-bold">
-                Sales Invoice (money coming in)
-              </Text>
+              <Text className="text-text font-inter-bold">Sales Invoice</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1974,7 +1974,7 @@ const InvoicesScreen = () => {
               }}
             >
               <Text style={{ color: "#f59e0b" }} className="font-inter-bold">
-                Purchase Invoice (money going out)
+                Purchase Invoice
               </Text>
             </TouchableOpacity>
 

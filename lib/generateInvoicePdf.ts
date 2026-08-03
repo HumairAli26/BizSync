@@ -68,24 +68,34 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
     data.items && data.items.length > 0
       ? data.items
       : [
-          {
-            name: "Services rendered",
-            quantity: 1,
-            unitPrice: data.amount ?? 0,
-            lineTotal: data.amount ?? 0,
-          },
-        ];
+        {
+          name: "Services rendered",
+          quantity: 1,
+          unitPrice: data.amount ?? 0,
+          lineTotal: data.amount ?? 0,
+        },
+      ];
 
   const subtotal = items.reduce((sum, item) => sum + (item.lineTotal || 0), 0);
   const discount = Math.max(0, data.discount ?? 0);
   const grandTotal = Math.max(0, subtotal - discount);
 
-  const amountPaid = typeof data.amountPaid === "number" ? data.amountPaid : 0;
-  const balanceDue =
-    typeof data.balanceDue === "number"
+  // A "paid" invoice must never show a balance due, regardless of whether
+  // product prices were edited after the invoice was settled.
+  const isPaid = data.status?.toLowerCase() === "paid";
+
+  // If paid, amountPaid should equal grandTotal to prevent mismatch
+  let amountPaid = typeof data.amountPaid === "number" ? data.amountPaid : 0;
+  if (isPaid) {
+    amountPaid = grandTotal;
+  }
+
+  const balanceDue = isPaid
+    ? 0
+    : typeof data.balanceDue === "number"
       ? data.balanceDue
       : Math.max(0, grandTotal - amountPaid);
-  const showPaymentSummary = amountPaid > 0;
+  const showPaymentSummary = amountPaid > 0 || isPaid;
 
   const rowsHtml = items
     .map(
@@ -332,9 +342,8 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
       <div class="header">
         <div>
           <p class="org-name">${data.orgName}</p>
-          ${
-            hasOrgDetails
-              ? `<div class="org-details">
+          ${hasOrgDetails
+      ? `<div class="org-details">
             ${orgAddress ? `${orgAddress}<br/>` : ""}
             ${orgEmail ? `${orgEmail}<br/>` : ""}
             ${orgPhone ? `Ph: ${orgPhone}${orgCell ? "" : "<br/>"}` : ""}
@@ -343,8 +352,8 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
             ${orgNtn ? `NTN: ${orgNtn}${orgSalesTaxNo ? " &nbsp;|&nbsp; " : "<br/>"}` : ""}
             ${orgSalesTaxNo ? `STRN: ${orgSalesTaxNo}<br/>` : ""}
           </div>`
-              : ""
-          }
+      : ""
+    }
         </div>
         <div>
           <p class="invoice-title">${invoiceLabel}</p>
@@ -379,14 +388,13 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
               <td class="totals-label" colspan="4">Subtotal</td>
               <td class="totals-value last-col">${formatPKR(subtotal)}</td>
             </tr>
-            ${
-              discount > 0
-                ? `<tr class="discount-row">
+            ${discount > 0
+      ? `<tr class="discount-row">
               <td class="totals-label" colspan="4">Discount</td>
               <td class="totals-value last-col">-${formatPKR(discount)}</td>
             </tr>`
-                : ""
-            }
+      : ""
+    }
             <tr class="total-row">
               <td class="totals-label" colspan="4">Total</td>
               <td class="totals-value last-col">${formatPKR(grandTotal)}</td>
@@ -395,9 +403,8 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
         </table>
       </div>
 
-      ${
-        showPaymentSummary
-          ? `
+      ${showPaymentSummary
+      ? `
       <div class="payment-summary">
         <div class="payment-summary-title">Payment Summary</div>
         <div class="payment-summary-row">
@@ -409,8 +416,8 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
           <strong>${formatPKR(balanceDue)}</strong>
         </div>
       </div>`
-          : ""
-      }
+      : ""
+    }
 
       <div class="signature-footer">
         <div class="signature-block">
