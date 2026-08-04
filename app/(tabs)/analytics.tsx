@@ -184,6 +184,7 @@ const Analytics = () => {
   const [exporting, setExporting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [loadingLedger, setLoadingLedger] = useState(false);
+  const [loadingWeeklyLedger, setLoadingWeeklyLedger] = useState(false);
 
   const [orgId, setOrgId] = useState<string>("");
   const [orgName, setOrgName] = useState<string>("BizSync");
@@ -421,14 +422,21 @@ const Analytics = () => {
     [currentMonthName, currentMonthRev, currentMonthExp, weeklyPeakValue],
   );
 
-  // ── Weekly bar data (scaled per 10000) ────────────────────────────
+  // ── Weekly bar data (raw PKR values) ────────────────────────────
   const weeklyBars: BarItem[] = useMemo(() => {
     return weeklyData.map((d) => ({
-      value: Math.round((d.value / 10000) * 100) / 100,
+      value: d.value,
       label: d.label,
       frontColor: selected?.label === d.label ? C.revenue : C.weekly + "cc",
     }));
   }, [weeklyData, selected]);
+
+  const weeklyMaxValue = useMemo(() => {
+    const peak = Math.max(...weeklyData.map((d) => d.value), 1000);
+    // Round up to a nice number
+    const magnitude = Math.pow(10, Math.floor(Math.log10(peak)));
+    return Math.ceil(peak / magnitude) * magnitude;
+  }, [weeklyData]);
 
   // ── Monthly sales bar data (scaled per 10000) ──────────────────────
   const monthlyBars: BarItem[] = useMemo(() => {
@@ -442,15 +450,13 @@ const Analytics = () => {
     });
   }, [activeMonths, monthlyDataMap, selected]);
 
-  // ── Finance grouped bar data (scaled per 10000) ────────────────────
+  // ── Finance grouped bar data (raw PKR, scale 0-100000) ────────────────────
   const financeBars: BarItem[] = useMemo(() => {
     return activeMonths.flatMap((m) => {
       const d = financeDataMap[m] ?? { rev: 0, exp: 0 };
-      const revScaled = Math.round((d.rev / 10000) * 100) / 100;
-      const expScaled = Math.round((d.exp / 10000) * 100) / 100;
       return [
         {
-          value: revScaled,
+          value: d.rev,
           label: m,
           frontColor:
             selected?.label === m && selected.type === "rev"
@@ -459,7 +465,7 @@ const Analytics = () => {
           spacing: 2,
         },
         {
-          value: expScaled,
+          value: d.exp,
           frontColor:
             selected?.label === m && selected.type === "exp"
               ? "#fbbf24"
@@ -469,6 +475,17 @@ const Analytics = () => {
       ];
     });
   }, [activeMonths, financeDataMap, selected]);
+
+  const financeMaxValue = useMemo(() => {
+    let peak = 100000;
+    activeMonths.forEach((m) => {
+      const d = financeDataMap[m] ?? { rev: 0, exp: 0 };
+      if (d.rev > peak) peak = d.rev;
+      if (d.exp > peak) peak = d.exp;
+    });
+    // Round up to nearest 10000
+    return Math.ceil(peak / 10000) * 10000;
+  }, [activeMonths, financeDataMap]);
 
   // ── Chart dims ──────────────────────────────────────────────────────────
   const cardPad = 48;
@@ -863,6 +880,178 @@ const Analytics = () => {
     }
   };
 
+  const handleDownloadWeeklyLedger = async () => {
+    if (!orgId) {
+      Alert.alert("Error", "No organization ID found.");
+      return;
+    }
+    setLoadingWeeklyLedger(true);
+    try {
+      const now = new Date();
+      const currentDay = now.getDay();
+      const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+      const monday = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + distanceToMonday,
+      );
+      monday.setHours(0, 0, 0, 0);
+      const saturday = new Date(monday);
+      saturday.setDate(monday.getDate() + 5);
+      saturday.setHours(23, 59, 59, 999);
+
+      const startTs = monday.getTime();
+      const endTs = saturday.getTime();
+
+      const txs = transactions
+        .filter((t) => {
+          if (!t.createdAt) return false;
+          return t.createdAt >= startTs && t.createdAt <= endTs;
+        })
+        .map((t) => ({ ...t }));
+
+      txs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+      let totalInflow = 0;
+      let totalOutflow = 0;
+      txs.forEach((t) => {
+        const amt = Number(t.amount) || 0;
+        if (amt < 0 || t.type === "purchase_payment") {
+          totalOutflow += Math.abs(amt);
+        } else {
+          totalInflow += amt;
+        }
+      });
+      const netBalance = totalInflow - totalOutflow;
+
+      const weekStart = monday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const weekEnd = saturday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const preparedAt = now.toLocaleString("en-US", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+      const rowsHtml =
+        txs.length > 0
+          ? txs.map((t, idx) => {
+              const isOutgoing = t.amount < 0 || t.type === "purchase_payment";
+              const amt = Math.abs(Number(t.amount) || 0);
+              const dateTimeStr = t.createdAt
+                ? new Date(t.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                : "—";
+              const desc = t.client || (isOutgoing ? "Purchase payment" : "Invoice payment");
+              const ref = t.invoiceNumber ? `#${t.invoiceNumber}` : "—";
+              const typeStr = isOutgoing ? "Expense / Outflow" : "Revenue / Inflow";
+              const amountColor = isOutgoing ? "#b91c1c" : "#15803d";
+              const amountSign = isOutgoing ? "-" : "+";
+              return `
+            <tr>
+              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${idx + 1}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${desc}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${ref}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${dateTimeStr}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${typeStr}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;text-align:right;width:120px;color:${amountColor};font-weight:600;">${amountSign}${formatPKR(amt)}</td>
+            </tr>`;
+            }).join("")
+          : `<tr><td colspan="6" style="text-align:center;padding:20px;color:#666;">No transactions recorded this week.</td></tr>`;
+
+      const hasOrgDetails = Boolean(orgAddress || orgEmail || orgPhone || orgCell || orgNtn || orgSalesTaxNo);
+
+      const html = `
+      <html><head><meta charset="utf-8" />
+        <style>
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 26px; color: #1a1a1a; font-size: 12px; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a1a; padding-bottom: 12px; margin-bottom: 16px; }
+          .org-name { font-size: 19px; font-weight: 700; margin: 0; }
+          .org-details { font-size: 11px; color: #1a1a1a; font-weight: 600; margin-top: 3px; line-height: 1.45; }
+          .invoice-title { font-size: 22px; font-weight: 700; text-align: right; margin: 0; color: #1a1a1a; }
+          .invoice-meta { text-align: right; font-size: 11px; color: #1a1a1a; font-weight: 600; margin-top: 5px; }
+          .items-table-wrap { border: 1.5px solid #1a1a1a; margin-bottom: 4px; }
+          table { width: 100%; border-collapse: collapse; }
+          th { text-align: left; font-size: 10px; text-transform: uppercase; font-weight: 700; color: #1a1a1a; letter-spacing: 0.4px; border-bottom: 1.5px solid #1a1a1a; border-right: 1px solid #1a1a1a; padding: 6px 8px; background: #f2f2f2; }
+          th:last-child { border-right: none; }
+          .summary-cards { display: flex; justify-content: flex-end; gap: 15px; margin-top: 15px; }
+          .summary-card { border: 1px solid #999; border-radius: 8px; padding: 8px 12px; background: #fafafa; min-width: 130px; text-align: right; }
+          .summary-title { font-size: 9px; text-transform: uppercase; color: #555; font-weight: 700; margin-bottom: 3px; }
+          .summary-value { font-size: 14px; font-weight: 700; }
+          .signature-footer { margin-top: 46px; display: flex; justify-content: flex-end; }
+          .signature-block { width: 220px; text-align: left; }
+          .signature-line { border-bottom: 1px solid #1a1a1a; height: 26px; }
+          .signature-field { font-size: 11px; margin-top: 6px; line-height: 1.5; }
+          .signature-field strong { font-weight: 700; }
+          .footer { margin-top: 26px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }
+        </style>
+      </head><body>
+        <div class="header">
+          <div>
+            <p class="org-name">${orgName}</p>
+            ${hasOrgDetails ? `<div class="org-details">
+              ${orgAddress ? `${orgAddress}<br/>` : ""}
+              ${orgEmail ? `${orgEmail}<br/>` : ""}
+              ${orgPhone ? `Ph: ${orgPhone}` : ""} ${orgCell ? ` | Cell: ${orgCell}` : ""}<br/>
+              ${orgNtn ? `NTN: ${orgNtn}` : ""} ${orgSalesTaxNo ? ` | STRN: ${orgSalesTaxNo}` : ""}
+            </div>` : ""}
+          </div>
+          <div>
+            <p class="invoice-title">WEEKLY LEDGER</p>
+            <div class="invoice-meta">
+              Week: ${weekStart} – ${weekEnd}<br/>
+              Prepared By: ${signedInUserName}
+            </div>
+          </div>
+        </div>
+        <div class="items-table-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:40px;">Sr#</th>
+              <th>Description</th>
+              <th>Reference</th>
+              <th>Date &amp; Time</th>
+              <th>Type</th>
+              <th style="text-align:right;width:130px;">Amount</th>
+            </tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div class="summary-cards">
+          <div class="summary-card"><div class="summary-title" style="color:#15803d;">Total Inflow</div><div class="summary-value" style="color:#15803d;">${formatPKR(totalInflow)}</div></div>
+          <div class="summary-card"><div class="summary-title" style="color:#b91c1c;">Total Outflow</div><div class="summary-value" style="color:#b91c1c;">${formatPKR(totalOutflow)}</div></div>
+          <div class="summary-card"><div class="summary-title" style="color:${netBalance >= 0 ? "#15803d" : "#b91c1c"};">Net Balance</div><div class="summary-value" style="color:${netBalance >= 0 ? "#15803d" : "#b91c1c"};">  ${formatPKR(netBalance)}</div></div>
+        </div>
+        <div class="signature-footer"><div class="signature-block">
+          <div class="signature-line"></div>
+          <div class="signature-field"><strong>Signature</strong></div>
+          <div class="signature-field"><strong>Name:</strong> ${signedInUserName}</div>
+          <div class="signature-field"><strong>Date:</strong> ${preparedAt}</div>
+        </div></div>
+        <div class="footer">Generated with BizSync — Thank you for your business</div>
+      </body></html>`;
+
+      if (Platform.OS === "web") {
+        await printHtmlInIsolatedWindow(html, `weekly_ledger_${weekStart}`);
+      } else {
+        const { uri } = await Print.printToFileAsync({ html, base64: false });
+        const fileName = `weekly_ledger.pdf`;
+        const source = new File(uri);
+        const destination = new File(Paths.cache, fileName);
+        if (destination.exists) destination.delete();
+        source.copy(destination);
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(destination.uri, {
+            mimeType: "application/pdf",
+            dialogTitle: `Weekly Ledger`,
+            UTI: "com.adobe.pdf",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Weekly ledger generation failed:", error);
+      Alert.alert("Error", "Failed to generate weekly ledger.");
+    } finally {
+      setLoadingWeeklyLedger(false);
+    }
+  };
+
   const handleExportPdf = async () => {
     setExportingPdf(true);
     try {
@@ -1173,7 +1362,7 @@ const Analytics = () => {
   // ── Chart configs ────────────────────────────────────────────────────────
   const commonChartProps = {
     barBorderRadius: 6,
-    yAxisTextStyle: { color: C.muted, fontSize: 11 },
+    yAxisTextStyle: { color: C.muted, fontSize: 10 },
     xAxisLabelTextStyle: { color: C.muted, fontSize: 11 },
     xAxisColor: C.border,
     yAxisColor: "transparent",
@@ -1181,9 +1370,25 @@ const Analytics = () => {
     rulesColor: C.surface2,
     rulesType: "solid" as const,
     noOfSections: 5,
-    maxValue: 100,
     isAnimated: true,
   };
+
+  // Y-axis formatter for PKR (e.g. 50000 → "50K")
+  const formatYAxis = (v: number) => {
+    if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+    if (v >= 1000) return `${(v / 1000).toFixed(0)}K`;
+    return `${v}`;
+  };
+
+  const weeklyYAxisTexts = useMemo(() => {
+    const step = weeklyMaxValue / 4;
+    return Array.from({ length: 5 }, (_, i) => formatYAxis(i * step));
+  }, [weeklyMaxValue]);
+
+  const financeYAxisTexts = useMemo(() => {
+    const step = financeMaxValue / 5;
+    return Array.from({ length: 6 }, (_, i) => formatYAxis(i * step));
+  }, [financeMaxValue]);
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -1200,6 +1405,22 @@ const Analytics = () => {
           </View>
           <View style={styles.headerRight}>
             <TouchableOpacity
+              onPress={handleDownloadWeeklyLedger}
+              disabled={loadingWeeklyLedger}
+              style={[
+                styles.ledgerBtn,
+                styles.weeklyLedgerBtn,
+                loadingWeeklyLedger && styles.ledgerBtnDisabled,
+              ]}
+              activeOpacity={0.8}
+            >
+              {loadingWeeklyLedger ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.ledgerBtnText}>📅 Weekly</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
               onPress={handleDownloadDailyLedger}
               disabled={loadingLedger}
               style={[
@@ -1211,7 +1432,7 @@ const Analytics = () => {
               {loadingLedger ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.ledgerBtnText}>📄 Daily Ledger</Text>
+                <Text style={styles.ledgerBtnText}>📄 Daily</Text>
               )}
             </TouchableOpacity>
             <View style={styles.badge}>
@@ -1294,10 +1515,10 @@ const Analytics = () => {
               </Text>
               <Text style={styles.chartSub}>
                 {activeTab === "weekly"
-                  ? "Mon – Sat  •  1 = Rs. 10,000"
+                  ? "Mon – Sat  •  This week's sales"
                   : activeTab === "monthly"
                     ? `Since Aug ${ONBOARDING_YEAR}  •  1 = Rs. 10,000`
-                    : `Since Aug ${ONBOARDING_YEAR}  •  1 = Rs. 10,000`}
+                    : `Since Aug ${ONBOARDING_YEAR}  •  Scale: Rs. 0 – 1,00,000`}
               </Text>
             </View>
 
@@ -1325,13 +1546,16 @@ const Analytics = () => {
             <View style={styles.chartWrap}>
               <BarChart
                 data={weeklyBars}
-                width={maxChartW}
+                width={maxChartW - 8}
                 height={220}
                 {...commonChartProps}
-                barWidth={36}
-                spacing={24}
-                initialSpacing={16}
-                endSpacing={16}
+                maxValue={weeklyMaxValue}
+                noOfSections={4}
+                yAxisLabelTexts={weeklyYAxisTexts}
+                barWidth={Math.floor((maxChartW - 80) / 6) - 8}
+                spacing={8}
+                initialSpacing={10}
+                endSpacing={10}
                 frontColor={C.weekly + "cc"}
                 onPress={onWeeklyTap}
               />
@@ -1371,6 +1595,9 @@ const Analytics = () => {
                   width={Math.max(maxChartW, activeMonths.length * 80)}
                   height={220}
                   {...commonChartProps}
+                  maxValue={financeMaxValue}
+                  noOfSections={5}
+                  yAxisLabelTexts={financeYAxisTexts}
                   barWidth={22}
                   spacing={2}
                   initialSpacing={12}
@@ -1509,18 +1736,21 @@ const styles = StyleSheet.create({
   ledgerBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 7,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+  },
+  weeklyLedgerBtn: {
+    backgroundColor: Colors.purple ?? "#5E5CE6",
   },
   ledgerBtnDisabled: {
     opacity: 0.6,
   },
   ledgerBtnText: {
     color: Colors.textInverse,
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "Inter-SemiBold",
   },
 
