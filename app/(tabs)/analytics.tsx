@@ -42,6 +42,183 @@ function formatPKR(amount: number | null | undefined): string {
   return `Rs. ${isNegative ? "-" : ""}${formattedInt}.${decPart}`;
 }
 
+// ---- HTML escaping for untrusted Firestore strings ----
+function escapeHtml(str: string | null | undefined): string {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// ---- Shared ledger CSS (reused by both daily & weekly) ----
+const LEDGER_CSS = `
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 26px; color: #1a1a1a; font-size: 12px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a1a; padding-bottom: 12px; margin-bottom: 16px; }
+  .org-name { font-size: 19px; font-weight: 700; margin: 0; }
+  .org-details { font-size: 11px; color: #1a1a1a; font-weight: 600; margin-top: 3px; line-height: 1.45; }
+  .invoice-title { font-size: 22px; font-weight: 700; text-align: right; margin: 0; color: #1a1a1a; }
+  .invoice-meta { text-align: right; font-size: 11px; color: #1a1a1a; font-weight: 600; margin-top: 5px; }
+  .items-table-wrap { border: 1.5px solid #1a1a1a; margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 10px; text-transform: uppercase; font-weight: 700; color: #1a1a1a;
+       letter-spacing: 0.4px; border-bottom: 1.5px solid #1a1a1a; border-right: 1px solid #1a1a1a;
+       padding: 6px 8px; background: #f2f2f2; }
+  th:last-child, td.last-col { border-right: none; }
+  .amount-col { text-align: right; width: 120px; }
+  .summary-cards { display: flex; justify-content: flex-end; gap: 15px; margin-top: 15px; }
+  .summary-card { border: 1px solid #999; border-radius: 8px; padding: 8px 12px; background: #fafafa; min-width: 130px; text-align: right; }
+  .summary-title { font-size: 9px; text-transform: uppercase; color: #555; font-weight: 700; margin-bottom: 3px; }
+  .summary-value { font-size: 14px; font-weight: 700; }
+  .signature-footer { margin-top: 46px; display: flex; justify-content: flex-end; }
+  .signature-block { width: 220px; text-align: left; }
+  .signature-line { border-bottom: 1px solid #1a1a1a; height: 26px; }
+  .signature-field { font-size: 11px; margin-top: 6px; line-height: 1.5; }
+  .signature-field strong { font-weight: 700; }
+  .footer { margin-top: 26px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }
+`;
+
+interface LedgerTx {
+  createdAt?: number;
+  amount: number;
+  type?: string;
+  client?: string;
+  invoiceNumber?: string;
+}
+
+interface LedgerOptions {
+  title: string;          // e.g. "DAILY LEDGER"
+  periodLabel: string;    // e.g. "Date: Aug 4, 2026" or "Week: Aug 4 – Aug 9, 2026"
+  timeColHeader: string;  // "Time" for daily, "Date & Time" for weekly
+  emptyMessage: string;
+  txs: LedgerTx[];
+  orgName: string;
+  orgAddress: string;
+  orgEmail: string;
+  orgPhone: string;
+  orgCell: string;
+  orgNtn: string;
+  orgSalesTaxNo: string;
+  signedInUserName: string;
+  preparedAt: string;
+  isWeekly: boolean;      // controls time display format
+}
+
+function buildLedgerHtml(opts: LedgerOptions): string {
+  const {
+    title, periodLabel, timeColHeader, emptyMessage,
+    txs, orgName, orgAddress, orgEmail, orgPhone, orgCell,
+    orgNtn, orgSalesTaxNo, signedInUserName, preparedAt, isWeekly,
+  } = opts;
+
+  let totalInflow = 0;
+  let totalOutflow = 0;
+  txs.forEach((t) => {
+    const amt = Number(t.amount) || 0;
+    if (amt < 0 || t.type === "purchase_payment") totalOutflow += Math.abs(amt);
+    else totalInflow += amt;
+  });
+  const netBalance = totalInflow - totalOutflow;
+  const netColor = netBalance >= 0 ? "#15803d" : "#b91c1c";
+
+  const rowsHtml = txs.length > 0
+    ? txs.map((t, idx) => {
+      const isOutgoing = (Number(t.amount) || 0) < 0 || t.type === "purchase_payment";
+      const amt = Math.abs(Number(t.amount) || 0);
+      const timeStr = t.createdAt
+        ? isWeekly
+          ? new Date(t.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+          : new Date(t.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+        : "—";
+      const desc = escapeHtml(t.client || (isOutgoing ? "Purchase payment" : "Invoice payment"));
+      const ref = t.invoiceNumber ? `#${escapeHtml(t.invoiceNumber)}` : "—";
+      const typeStr = isOutgoing ? "Expense / Outflow" : "Revenue / Inflow";
+      const color = isOutgoing ? "#b91c1c" : "#15803d";
+      const sign = isOutgoing ? "-" : "+";
+      const td = `padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;`;
+      return `<tr>
+          <td style="${td}">${idx + 1}</td>
+          <td style="${td}">${desc}</td>
+          <td style="${td}">${ref}</td>
+          <td style="${td}">${timeStr}</td>
+          <td style="${td}">${typeStr}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;text-align:right;width:120px;color:${color};font-weight:600;">${sign}${formatPKR(amt)}</td>
+        </tr>`;
+    }).join("")
+    : `<tr><td colspan="6" style="text-align:center;padding:20px;color:#666;">${emptyMessage}</td></tr>`;
+
+  const hasOrgDetails = Boolean(orgAddress || orgEmail || orgPhone || orgCell || orgNtn || orgSalesTaxNo);
+  const orgDetailsHtml = hasOrgDetails ? `<div class="org-details">
+    ${orgAddress ? `${escapeHtml(orgAddress)}<br/>` : ""}
+    ${orgEmail ? `${escapeHtml(orgEmail)}<br/>` : ""}
+    ${orgPhone ? `Ph: ${escapeHtml(orgPhone)}` : ""}${orgCell ? ` | Cell: ${escapeHtml(orgCell)}` : ""}<br/>
+    ${orgNtn ? `NTN: ${escapeHtml(orgNtn)}` : ""}${orgSalesTaxNo ? ` | STRN: ${escapeHtml(orgSalesTaxNo)}` : ""}
+  </div>` : "";
+
+  return `<html><head><meta charset="utf-8"/><style>${LEDGER_CSS}</style></head><body>
+  <div class="header">
+    <div>
+      <p class="org-name">${escapeHtml(orgName)}</p>
+      ${orgDetailsHtml}
+    </div>
+    <div>
+      <p class="invoice-title">${title}</p>
+      <div class="invoice-meta">${periodLabel}<br/>Prepared By: ${escapeHtml(signedInUserName)}</div>
+    </div>
+  </div>
+  <div class="items-table-wrap"><table>
+    <thead><tr>
+      <th style="width:40px;">Sr#</th>
+      <th>Description</th>
+      <th>Reference</th>
+      <th>${timeColHeader}</th>
+      <th>Type</th>
+      <th style="text-align:right;width:130px;">Amount</th>
+    </tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table></div>
+  <div class="summary-cards">
+    <div class="summary-card"><div class="summary-title" style="color:#15803d;">Total Inflow</div><div class="summary-value" style="color:#15803d;">${formatPKR(totalInflow)}</div></div>
+    <div class="summary-card"><div class="summary-title" style="color:#b91c1c;">Total Outflow</div><div class="summary-value" style="color:#b91c1c;">${formatPKR(totalOutflow)}</div></div>
+    <div class="summary-card"><div class="summary-title" style="color:${netColor};">Net Balance</div><div class="summary-value" style="color:${netColor};">${formatPKR(netBalance)}</div></div>
+  </div>
+  <div class="signature-footer"><div class="signature-block">
+    <div class="signature-line"></div>
+    <div class="signature-field"><strong>Signature</strong></div>
+    <div class="signature-field"><strong>Name:</strong> ${escapeHtml(signedInUserName)}</div>
+    <div class="signature-field"><strong>Date:</strong> ${preparedAt}</div>
+  </div></div>
+  <div class="footer">Generated with BizSync — Thank you for your business</div>
+</body></html>`;
+}
+
+async function exportLedgerPdf(
+  html: string,
+  fileBaseName: string,
+  dialogTitle: string,
+  webTitle: string,
+): Promise<void> {
+  if (Platform.OS === "web") {
+    await printHtmlInIsolatedWindow(html, webTitle);
+    return;
+  }
+  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const dest = new File(Paths.cache, `${fileBaseName}.pdf`);
+  if (dest.exists) dest.delete();
+  (new File(uri)).copy(dest);
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(dest.uri, {
+      mimeType: "application/pdf",
+      dialogTitle,
+      UTI: "com.adobe.pdf",
+    });
+  }
+}
+
 function printHtmlInIsolatedWindow(html: string, title: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const printWindow = window.open("", "_blank", "width=900,height=1000");
@@ -250,10 +427,16 @@ const Analytics = () => {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const txs = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }));
+        const txs = snapshot.docs.map((d) => {
+          const raw = d.data();
+          // Normalize createdAt to ms-epoch number — guards against
+          // Firestore Timestamp objects or Date objects in older docs
+          let ts = raw.createdAt;
+          if (ts != null && typeof ts !== "number") {
+            ts = typeof ts.toMillis === "function" ? ts.toMillis() : new Date(ts).getTime();
+          }
+          return { id: d.id, ...raw, createdAt: ts };
+        });
         setTransactions(txs);
       },
       (err) => {
@@ -488,8 +671,11 @@ const Analytics = () => {
   }, [activeMonths, financeDataMap]);
 
   // ── Chart dims ──────────────────────────────────────────────────────────
-  const cardPad = 48;
-  const maxChartW = isDesktop ? 900 : windowWidth - cardPad;
+  const chartCardPadding = 40; // 20 on each side
+  const scrollContentPadding = 40; // 20 on each side
+  const totalPadding = chartCardPadding + scrollContentPadding;
+  const maxChartW = isDesktop ? 900 : windowWidth - totalPadding;
+  const weeklyBarWidth = Math.floor((maxChartW - 130) / 6);
 
   // ── CSV Export ─────────────────────────────────────────────────────────
   const handleExport = async () => {
@@ -545,333 +731,38 @@ const Analytics = () => {
   };
 
   const handleDownloadDailyLedger = async () => {
-    if (!orgId) {
-      Alert.alert("Error", "No organization ID found.");
-      return;
-    }
+    if (!orgId) { Alert.alert("Error", "No organization ID found."); return; }
     setLoadingLedger(true);
     try {
       const now = new Date();
-      const todayStr = now.toDateString();
+      // Use explicit midnight boundaries so timezone differences cannot bleed yesterday's records in
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
-      // Filter from already-loaded transactions for today's date
-      // using local timezone comparison to avoid Firestore index/tz issues
       const txs = transactions
         .filter((t) => {
-          if (!t.createdAt) return false;
-          return new Date(t.createdAt).toDateString() === todayStr;
+          if (t.createdAt == null) return false;
+          // Safety: coerce Firestore Timestamp or Date objects to ms
+          const ts = typeof t.createdAt === "number" ? t.createdAt : (t.createdAt as any).toMillis?.() ?? new Date(t.createdAt).getTime();
+          return ts >= startOfDay && ts <= endOfDay;
         })
         .map((t) => ({ ...t }));
-
-      // Sort by time ascending
       txs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
-      // Calculate totals
-      let totalInflow = 0;
-      let totalOutflow = 0;
-      txs.forEach((t) => {
-        const amt = Number(t.amount) || 0;
-        if (amt < 0 || t.type === "purchase_payment") {
-          totalOutflow += Math.abs(amt);
-        } else {
-          totalInflow += amt;
-        }
-      });
-      const netBalance = totalInflow - totalOutflow;
+      const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+      const preparedAt = now.toLocaleString("en-US", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-      // Build HTML content
-      const rowsHtml =
-        txs.length > 0
-          ? txs
-              .map((t, idx) => {
-                const isOutgoing =
-                  t.amount < 0 || t.type === "purchase_payment";
-                const amt = Math.abs(Number(t.amount) || 0);
-                const timeStr = t.createdAt
-                  ? new Date(t.createdAt).toLocaleTimeString("en-US", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "—";
-                const desc =
-                  t.client ||
-                  (isOutgoing ? "Purchase payment" : "Invoice payment");
-                const ref = t.invoiceNumber ? `#${t.invoiceNumber}` : "—";
-                const typeStr = isOutgoing
-                  ? "Expense / Outflow"
-                  : "Revenue / Inflow";
-                const amountColor = isOutgoing ? "#b91c1c" : "#15803d";
-                const amountSign = isOutgoing ? "-" : "+";
-
-                return `
-              <tr>
-                <td style="padding: 6px 8px; border-bottom: 1px solid #1a1a1a; border-right: 1px solid #1a1a1a;">${idx + 1}</td>
-                <td style="padding: 6px 8px; border-bottom: 1px solid #1a1a1a; border-right: 1px solid #1a1a1a;">${desc}</td>
-                <td style="padding: 6px 8px; border-bottom: 1px solid #1a1a1a; border-right: 1px solid #1a1a1a;">${ref}</td>
-                <td style="padding: 6px 8px; border-bottom: 1px solid #1a1a1a; border-right: 1px solid #1a1a1a;">${timeStr}</td>
-                <td style="padding: 6px 8px; border-bottom: 1px solid #1a1a1a; border-right: 1px solid #1a1a1a;">${typeStr}</td>
-                <td class="amount-col last-col" style="padding: 6px 8px; border-bottom: 1px solid #1a1a1a; text-align: right; width: 120px; color: ${amountColor}; font-weight: 600;">
-                  ${amountSign}${formatPKR(amt)}
-                </td>
-              </tr>
-            `;
-              })
-              .join("")
-          : `
-          <tr>
-            <td colspan="6" style="text-align: center; padding: 20px; color: #666; border-bottom: none;">
-              No transactions recorded today.
-            </td>
-          </tr>
-        `;
-
-      const hasOrgDetails = Boolean(
-        orgAddress ||
-        orgEmail ||
-        orgPhone ||
-        orgCell ||
-        orgNtn ||
-        orgSalesTaxNo,
-      );
-      const dateStr = now.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-      const preparedAt = now.toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
+      const html = buildLedgerHtml({
+        title: "DAILY LEDGER",
+        periodLabel: `Date: ${dateStr}`,
+        timeColHeader: "Time",
+        emptyMessage: "No transactions recorded today.",
+        txs,
+        orgName, orgAddress, orgEmail, orgPhone, orgCell, orgNtn, orgSalesTaxNo,
+        signedInUserName, preparedAt, isWeekly: false,
       });
 
-      const html = `
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <style>
-            * {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            body {
-              font-family: -apple-system, Helvetica, Arial, sans-serif;
-              padding: 26px;
-              color: #1a1a1a;
-              font-size: 12px;
-            }
-            .header {
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-start;
-              border-bottom: 2px solid #1a1a1a;
-              padding-bottom: 12px;
-              margin-bottom: 16px;
-            }
-            .org-name {
-              font-size: 19px;
-              font-weight: 700;
-              margin: 0;
-            }
-            .org-details {
-              font-size: 11px;
-              color: #1a1a1a;
-              font-weight: 600;
-              margin-top: 3px;
-              line-height: 1.45;
-            }
-            .invoice-title {
-              font-size: 22px;
-              font-weight: 700;
-              text-align: right;
-              margin: 0;
-              color: #1a1a1a;
-            }
-            .invoice-meta {
-              text-align: right;
-              font-size: 11px;
-              color: #1a1a1a;
-              font-weight: 600;
-              margin-top: 5px;
-            }
-            .items-table-wrap {
-              border: 1.5px solid #1a1a1a;
-              margin-bottom: 4px;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-            }
-            th {
-              text-align: left;
-              font-size: 10px;
-              text-transform: uppercase;
-              font-weight: 700;
-              color: #1a1a1a;
-              letter-spacing: 0.4px;
-              border-bottom: 1.5px solid #1a1a1a;
-              border-right: 1px solid #1a1a1a;
-              padding: 6px 8px;
-              background: #f2f2f2;
-            }
-            th:last-child,
-            td.last-col {
-              border-right: none;
-            }
-            .amount-col {
-              text-align: right;
-              width: 120px;
-            }
-            .summary-cards {
-              display: flex;
-              justify-content: flex-end;
-              gap: 15px;
-              margin-top: 15px;
-            }
-            .summary-card {
-              border: 1px solid #999;
-              border-radius: 8px;
-              padding: 8px 12px;
-              background: #fafafa;
-              min-width: 130px;
-              text-align: right;
-            }
-            .summary-title {
-              font-size: 9px;
-              text-transform: uppercase;
-              color: #555;
-              font-weight: 700;
-              margin-bottom: 3px;
-            }
-            .summary-value {
-              font-size: 14px;
-              font-weight: 700;
-            }
-            .signature-footer {
-              margin-top: 46px;
-              display: flex;
-              justify-content: flex-end;
-            }
-            .signature-block {
-              width: 220px;
-              text-align: left;
-            }
-            .signature-line {
-              border-bottom: 1px solid #1a1a1a;
-              height: 26px;
-            }
-            .signature-field {
-              font-size: 11px;
-              margin-top: 6px;
-              line-height: 1.5;
-            }
-            .signature-field strong {
-              font-weight: 700;
-            }
-            .footer {
-              margin-top: 26px;
-              font-size: 10px;
-              color: #999;
-              border-top: 1px solid #eee;
-              padding-top: 10px;
-              text-align: center;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <p class="org-name">${orgName}</p>
-              ${
-                hasOrgDetails
-                  ? `<div class="org-details">
-                ${orgAddress ? `${orgAddress}<br/>` : ""}
-                ${orgEmail ? `${orgEmail}<br/>` : ""}
-                ${orgPhone ? `Ph: ${orgPhone}` : ""} ${orgCell ? ` | Cell: ${orgCell}` : ""}<br/>
-                ${orgNtn ? `NTN: ${orgNtn}` : ""} ${orgSalesTaxNo ? ` | STRN: ${orgSalesTaxNo}` : ""}
-              </div>`
-                  : ""
-              }
-            </div>
-            <div>
-              <p class="invoice-title">DAILY LEDGER</p>
-              <div class="invoice-meta">
-                Date: ${dateStr}<br/>
-                Prepared By: ${signedInUserName}
-              </div>
-            </div>
-          </div>
-
-          <div class="items-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 50px; padding: 6px 8px; border-bottom: 1.5px solid #1a1a1a; border-right: 1px solid #1a1a1a;">Sr#</th>
-                  <th style="padding: 6px 8px; border-bottom: 1.5px solid #1a1a1a; border-right: 1px solid #1a1a1a;">Description</th>
-                  <th style="padding: 6px 8px; border-bottom: 1.5px solid #1a1a1a; border-right: 1px solid #1a1a1a;">Reference</th>
-                  <th style="padding: 6px 8px; border-bottom: 1.5px solid #1a1a1a; border-right: 1px solid #1a1a1a;">Time</th>
-                  <th style="padding: 6px 8px; border-bottom: 1.5px solid #1a1a1a; border-right: 1px solid #1a1a1a;">Type</th>
-                  <th class="amount-col last-col" style="padding: 6px 8px; border-bottom: 1.5px solid #1a1a1a; text-align: right; width: 120px;">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-          </div>
-
-          <div class="summary-cards">
-            <div class="summary-card">
-              <div class="summary-title" style="color: #15803d;">Total Inflow</div>
-              <div class="summary-value" style="color: #15803d;">${formatPKR(totalInflow)}</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-title" style="color: #b91c1c;">Total Outflow</div>
-              <div class="summary-value" style="color: #b91c1c;">${formatPKR(totalOutflow)}</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-title" style="color: ${netBalance >= 0 ? "#15803d" : "#b91c1c"};">Net Balance</div>
-              <div class="summary-value" style="color: ${netBalance >= 0 ? "#15803d" : "#b91c1c"};">${formatPKR(netBalance)}</div>
-            </div>
-          </div>
-
-          <div class="signature-footer">
-            <div class="signature-block">
-              <div class="signature-line"></div>
-              <div class="signature-field"><strong>Signature</strong></div>
-              <div class="signature-field"><strong>Name:</strong> ${signedInUserName}</div>
-              <div class="signature-field"><strong>Date:</strong> ${preparedAt}</div>
-            </div>
-          </div>
-
-          <div class="footer">
-            Generated with BizSync — Thank you for your business
-          </div>
-        </body>
-      </html>
-      `;
-
-      if (Platform.OS === "web") {
-        await printHtmlInIsolatedWindow(html, `daily_ledger_${dateStr}`);
-      } else {
-        const { uri } = await Print.printToFileAsync({ html, base64: false });
-        const fileName = `daily_ledger_${dateStr}.pdf`;
-        const source = new File(uri);
-        const destination = new File(Paths.cache, fileName);
-        if (destination.exists) {
-          destination.delete();
-        }
-        source.copy(destination);
-        const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          await Sharing.shareAsync(destination.uri, {
-            mimeType: "application/pdf",
-            dialogTitle: `Daily Ledger - ${dateStr}`,
-            UTI: "com.adobe.pdf",
-          });
-        }
-      }
+      await exportLedgerPdf(html, `daily_ledger_${dateStr}`, `Daily Ledger - ${dateStr}`, `daily_ledger_${dateStr}`);
     } catch (error) {
       console.error("Ledger generation failed:", error);
       Alert.alert("Error", "Failed to generate daily ledger.");
@@ -881,169 +772,39 @@ const Analytics = () => {
   };
 
   const handleDownloadWeeklyLedger = async () => {
-    if (!orgId) {
-      Alert.alert("Error", "No organization ID found.");
-      return;
-    }
+    if (!orgId) { Alert.alert("Error", "No organization ID found."); return; }
     setLoadingWeeklyLedger(true);
     try {
       const now = new Date();
       const currentDay = now.getDay();
       const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
-      const monday = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() + distanceToMonday,
-      );
-      monday.setHours(0, 0, 0, 0);
-      const saturday = new Date(monday);
-      saturday.setDate(monday.getDate() + 5);
-      saturday.setHours(23, 59, 59, 999);
-
+      const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distanceToMonday, 0, 0, 0, 0);
+      const saturday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 5, 23, 59, 59, 999);
       const startTs = monday.getTime();
       const endTs = saturday.getTime();
 
       const txs = transactions
-        .filter((t) => {
-          if (!t.createdAt) return false;
-          return t.createdAt >= startTs && t.createdAt <= endTs;
-        })
+        .filter((t) => t.createdAt != null && t.createdAt >= startTs && t.createdAt <= endTs)
         .map((t) => ({ ...t }));
-
       txs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
-      let totalInflow = 0;
-      let totalOutflow = 0;
-      txs.forEach((t) => {
-        const amt = Number(t.amount) || 0;
-        if (amt < 0 || t.type === "purchase_payment") {
-          totalOutflow += Math.abs(amt);
-        } else {
-          totalInflow += amt;
-        }
-      });
-      const netBalance = totalInflow - totalOutflow;
-
-      const weekStart = monday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      const weekEnd = saturday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const weekStart = fmt(monday);
+      const weekEnd = fmt(saturday);
       const preparedAt = now.toLocaleString("en-US", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+      const fileBase = `weekly_ledger_${weekStart.replace(/,/g, "").replace(/ /g, "_")}_to_${weekEnd.replace(/,/g, "").replace(/ /g, "_")}`;
 
-      const rowsHtml =
-        txs.length > 0
-          ? txs.map((t, idx) => {
-              const isOutgoing = t.amount < 0 || t.type === "purchase_payment";
-              const amt = Math.abs(Number(t.amount) || 0);
-              const dateTimeStr = t.createdAt
-                ? new Date(t.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                : "—";
-              const desc = t.client || (isOutgoing ? "Purchase payment" : "Invoice payment");
-              const ref = t.invoiceNumber ? `#${t.invoiceNumber}` : "—";
-              const typeStr = isOutgoing ? "Expense / Outflow" : "Revenue / Inflow";
-              const amountColor = isOutgoing ? "#b91c1c" : "#15803d";
-              const amountSign = isOutgoing ? "-" : "+";
-              return `
-            <tr>
-              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${idx + 1}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${desc}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${ref}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${dateTimeStr}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;">${typeStr}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #1a1a1a;text-align:right;width:120px;color:${amountColor};font-weight:600;">${amountSign}${formatPKR(amt)}</td>
-            </tr>`;
-            }).join("")
-          : `<tr><td colspan="6" style="text-align:center;padding:20px;color:#666;">No transactions recorded this week.</td></tr>`;
+      const html = buildLedgerHtml({
+        title: "WEEKLY LEDGER",
+        periodLabel: `Week: ${weekStart} – ${weekEnd}`,
+        timeColHeader: "Date &amp; Time",
+        emptyMessage: "No transactions recorded this week.",
+        txs,
+        orgName, orgAddress, orgEmail, orgPhone, orgCell, orgNtn, orgSalesTaxNo,
+        signedInUserName, preparedAt, isWeekly: true,
+      });
 
-      const hasOrgDetails = Boolean(orgAddress || orgEmail || orgPhone || orgCell || orgNtn || orgSalesTaxNo);
-
-      const html = `
-      <html><head><meta charset="utf-8" />
-        <style>
-          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 26px; color: #1a1a1a; font-size: 12px; }
-          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a1a; padding-bottom: 12px; margin-bottom: 16px; }
-          .org-name { font-size: 19px; font-weight: 700; margin: 0; }
-          .org-details { font-size: 11px; color: #1a1a1a; font-weight: 600; margin-top: 3px; line-height: 1.45; }
-          .invoice-title { font-size: 22px; font-weight: 700; text-align: right; margin: 0; color: #1a1a1a; }
-          .invoice-meta { text-align: right; font-size: 11px; color: #1a1a1a; font-weight: 600; margin-top: 5px; }
-          .items-table-wrap { border: 1.5px solid #1a1a1a; margin-bottom: 4px; }
-          table { width: 100%; border-collapse: collapse; }
-          th { text-align: left; font-size: 10px; text-transform: uppercase; font-weight: 700; color: #1a1a1a; letter-spacing: 0.4px; border-bottom: 1.5px solid #1a1a1a; border-right: 1px solid #1a1a1a; padding: 6px 8px; background: #f2f2f2; }
-          th:last-child { border-right: none; }
-          .summary-cards { display: flex; justify-content: flex-end; gap: 15px; margin-top: 15px; }
-          .summary-card { border: 1px solid #999; border-radius: 8px; padding: 8px 12px; background: #fafafa; min-width: 130px; text-align: right; }
-          .summary-title { font-size: 9px; text-transform: uppercase; color: #555; font-weight: 700; margin-bottom: 3px; }
-          .summary-value { font-size: 14px; font-weight: 700; }
-          .signature-footer { margin-top: 46px; display: flex; justify-content: flex-end; }
-          .signature-block { width: 220px; text-align: left; }
-          .signature-line { border-bottom: 1px solid #1a1a1a; height: 26px; }
-          .signature-field { font-size: 11px; margin-top: 6px; line-height: 1.5; }
-          .signature-field strong { font-weight: 700; }
-          .footer { margin-top: 26px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }
-        </style>
-      </head><body>
-        <div class="header">
-          <div>
-            <p class="org-name">${orgName}</p>
-            ${hasOrgDetails ? `<div class="org-details">
-              ${orgAddress ? `${orgAddress}<br/>` : ""}
-              ${orgEmail ? `${orgEmail}<br/>` : ""}
-              ${orgPhone ? `Ph: ${orgPhone}` : ""} ${orgCell ? ` | Cell: ${orgCell}` : ""}<br/>
-              ${orgNtn ? `NTN: ${orgNtn}` : ""} ${orgSalesTaxNo ? ` | STRN: ${orgSalesTaxNo}` : ""}
-            </div>` : ""}
-          </div>
-          <div>
-            <p class="invoice-title">WEEKLY LEDGER</p>
-            <div class="invoice-meta">
-              Week: ${weekStart} – ${weekEnd}<br/>
-              Prepared By: ${signedInUserName}
-            </div>
-          </div>
-        </div>
-        <div class="items-table-wrap">
-          <table>
-            <thead><tr>
-              <th style="width:40px;">Sr#</th>
-              <th>Description</th>
-              <th>Reference</th>
-              <th>Date &amp; Time</th>
-              <th>Type</th>
-              <th style="text-align:right;width:130px;">Amount</th>
-            </tr></thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-        </div>
-        <div class="summary-cards">
-          <div class="summary-card"><div class="summary-title" style="color:#15803d;">Total Inflow</div><div class="summary-value" style="color:#15803d;">${formatPKR(totalInflow)}</div></div>
-          <div class="summary-card"><div class="summary-title" style="color:#b91c1c;">Total Outflow</div><div class="summary-value" style="color:#b91c1c;">${formatPKR(totalOutflow)}</div></div>
-          <div class="summary-card"><div class="summary-title" style="color:${netBalance >= 0 ? "#15803d" : "#b91c1c"};">Net Balance</div><div class="summary-value" style="color:${netBalance >= 0 ? "#15803d" : "#b91c1c"};">  ${formatPKR(netBalance)}</div></div>
-        </div>
-        <div class="signature-footer"><div class="signature-block">
-          <div class="signature-line"></div>
-          <div class="signature-field"><strong>Signature</strong></div>
-          <div class="signature-field"><strong>Name:</strong> ${signedInUserName}</div>
-          <div class="signature-field"><strong>Date:</strong> ${preparedAt}</div>
-        </div></div>
-        <div class="footer">Generated with BizSync — Thank you for your business</div>
-      </body></html>`;
-
-      if (Platform.OS === "web") {
-        await printHtmlInIsolatedWindow(html, `weekly_ledger_${weekStart}`);
-      } else {
-        const { uri } = await Print.printToFileAsync({ html, base64: false });
-        const fileName = `weekly_ledger.pdf`;
-        const source = new File(uri);
-        const destination = new File(Paths.cache, fileName);
-        if (destination.exists) destination.delete();
-        source.copy(destination);
-        const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          await Sharing.shareAsync(destination.uri, {
-            mimeType: "application/pdf",
-            dialogTitle: `Weekly Ledger`,
-            UTI: "com.adobe.pdf",
-          });
-        }
-      }
+      await exportLedgerPdf(html, fileBase, `Weekly Ledger ${weekStart} – ${weekEnd}`, `weekly_ledger_${weekStart}`);
     } catch (error) {
       console.error("Weekly ledger generation failed:", error);
       Alert.alert("Error", "Failed to generate weekly ledger.");
@@ -1253,16 +1014,15 @@ const Analytics = () => {
           <div class="header">
             <div>
               <p class="org-name">${orgName}</p>
-              ${
-                hasOrgDetails
-                  ? `<div class="org-details">
+              ${hasOrgDetails
+          ? `<div class="org-details">
                 ${orgAddress ? `${orgAddress}<br/>` : ""}
                 ${orgEmail ? `${orgEmail}<br/>` : ""}
                 ${orgPhone ? `Ph: ${orgPhone}` : ""} ${orgCell ? ` | Cell: ${orgCell}` : ""}<br/>
                 ${orgNtn ? `NTN: ${orgNtn}` : ""} ${orgSalesTaxNo ? ` | STRN: ${orgSalesTaxNo}` : ""}
               </div>`
-                  : ""
-              }
+          : ""
+        }
             </div>
             <div>
               <p class="invoice-title">${reportTitle}</p>
@@ -1398,12 +1158,32 @@ const Analytics = () => {
         contentContainerStyle={styles.scrollContent}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
-        <View style={styles.header}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.headerTitle}>Analytics</Text>
-            <Text style={styles.headerSub}>Financial Overview</Text>
+        <View style={styles.headerContainer}>
+          <View style={styles.headerRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.headerTitle}>Analytics</Text>
+              <Text style={styles.headerSub}>Financial Overview</Text>
+            </View>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{getCurrentMonthYear()}</Text>
+            </View>
           </View>
-          <View style={styles.headerRight}>
+          <View style={styles.ledgerRow}>
+            <TouchableOpacity
+              onPress={handleDownloadDailyLedger}
+              disabled={loadingLedger}
+              style={[
+                styles.ledgerBtn,
+                loadingLedger && styles.ledgerBtnDisabled,
+              ]}
+              activeOpacity={0.8}
+            >
+              {loadingLedger ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.ledgerBtnText}>📄 Daily Ledger</Text>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={handleDownloadWeeklyLedger}
               disabled={loadingWeeklyLedger}
@@ -1417,27 +1197,9 @@ const Analytics = () => {
               {loadingWeeklyLedger ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.ledgerBtnText}>📅 Weekly</Text>
+                <Text style={styles.ledgerBtnText}>📅 Weekly Ledger</Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleDownloadDailyLedger}
-              disabled={loadingLedger}
-              style={[
-                styles.ledgerBtn,
-                loadingLedger && styles.ledgerBtnDisabled,
-              ]}
-              activeOpacity={0.8}
-            >
-              {loadingLedger ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.ledgerBtnText}>📄 Daily</Text>
-              )}
-            </TouchableOpacity>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{getCurrentMonthYear()}</Text>
-            </View>
           </View>
         </View>
 
@@ -1505,7 +1267,7 @@ const Analytics = () => {
 
           {/* Chart title + export */}
           <View style={styles.chartHeader}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.chartTitle}>
                 {activeTab === "weekly"
                   ? "Weekly Performance"
@@ -1520,25 +1282,25 @@ const Analytics = () => {
                     ? `Since Aug ${ONBOARDING_YEAR}  •  1 = Rs. 10,000`
                     : `Since Aug ${ONBOARDING_YEAR}  •  Scale: Rs. 0 – 1,00,000`}
               </Text>
-            </View>
 
-            {/* Finance legend */}
-            {activeTab === "finance" && (
-              <View style={styles.legend}>
-                <View style={styles.legendItem}>
-                  <View
-                    style={[styles.legendDot, { backgroundColor: C.revenue }]}
-                  />
-                  <Text style={styles.legendText}>Revenue</Text>
+              {/* Finance legend below subtitle on left */}
+              {activeTab === "finance" && (
+                <View style={styles.legend}>
+                  <View style={styles.legendItem}>
+                    <View
+                      style={[styles.legendDot, { backgroundColor: C.revenue }]}
+                    />
+                    <Text style={styles.legendText}>Revenue</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View
+                      style={[styles.legendDot, { backgroundColor: C.expenses }]}
+                    />
+                    <Text style={styles.legendText}>Expenses</Text>
+                  </View>
                 </View>
-                <View style={styles.legendItem}>
-                  <View
-                    style={[styles.legendDot, { backgroundColor: C.expenses }]}
-                  />
-                  <Text style={styles.legendText}>Expenses</Text>
-                </View>
-              </View>
-            )}
+              )}
+            </View>
           </View>
 
           {/* ── Charts ───────────────────────────────────────────────── */}
@@ -1546,16 +1308,17 @@ const Analytics = () => {
             <View style={styles.chartWrap}>
               <BarChart
                 data={weeklyBars}
-                width={maxChartW - 8}
+                width={maxChartW - 50}
                 height={220}
                 {...commonChartProps}
                 maxValue={weeklyMaxValue}
                 noOfSections={4}
                 yAxisLabelTexts={weeklyYAxisTexts}
-                barWidth={Math.floor((maxChartW - 80) / 6) - 8}
-                spacing={8}
-                initialSpacing={10}
-                endSpacing={10}
+                yAxisLabelWidth={40}
+                barWidth={weeklyBarWidth}
+                spacing={12}
+                initialSpacing={12}
+                endSpacing={12}
                 frontColor={C.weekly + "cc"}
                 onPress={onWeeklyTap}
               />
@@ -1698,11 +1461,18 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  header: {
+  headerContainer: {
+    marginBottom: 20,
+  },
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+  },
+  ledgerRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
   },
   headerTitle: {
     fontSize: 28,
@@ -1714,11 +1484,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter-Medium",
     color: Colors.textMuted,
     marginTop: 2,
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
   },
   badge: {
     backgroundColor: Colors.surface,
@@ -1734,10 +1499,10 @@ const styles = StyleSheet.create({
     fontFamily: "Inter-SemiBold",
   },
   ledgerBtn: {
+    flex: 1,
     backgroundColor: Colors.primary,
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1750,7 +1515,7 @@ const styles = StyleSheet.create({
   },
   ledgerBtnText: {
     color: Colors.textInverse,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: "Inter-SemiBold",
   },
 

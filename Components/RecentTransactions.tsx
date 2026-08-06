@@ -75,20 +75,27 @@ const RecentTransactions = ({
 
   useEffect(() => {
     if (!orgId) return;
+    // Only show today's transactions — compute local-day midnight boundaries
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+
     const q = query(
       collection(db, "sales"),
       where("orgId", "==", orgId),
+      where("createdAt", ">=", startOfDay),
       orderBy("createdAt", "desc"),
     );
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        setTransactions(
-          snapshot.docs.map((d) => ({
+        const todayTxs = snapshot.docs
+          .map((d) => ({
             id: d.id,
             ...(d.data() as Omit<Transaction, "id">),
-          })),
-        );
+          }))
+          .filter((t) => t.createdAt <= endOfDay);
+        setTransactions(todayTxs);
         setLoading(false);
       },
       (error) => {
@@ -113,7 +120,7 @@ const RecentTransactions = ({
     return (
       <View className="transactions-card">
         <Text className="text-text-muted font-inter" style={{ padding: 12 }}>
-          No transactions yet
+          No transactions today
         </Text>
       </View>
     );
