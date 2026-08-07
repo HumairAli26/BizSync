@@ -55,6 +55,7 @@ const Settings = () => {
   const [orgId, setOrgId] = useState<string>("");
   const [role, setRole] = useState<string>("member");
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [orgPlan, setOrgPlan] = useState<string>("basic");
 
   // These feed directly into the invoice PDF header (generateInvoicePdf.ts)
   // — all optional there, and simply omitted from the invoice if blank.
@@ -124,6 +125,7 @@ const Settings = () => {
           setOrgCell(data.cell ?? "");
           setOrgNtn(data.ntn ?? "");
           setOrgSalesTaxNo(data.salesTaxNo ?? "");
+          setOrgPlan(data.subscription?.plan ?? "basic");
         }
       },
     );
@@ -364,6 +366,40 @@ const Settings = () => {
               </TouchableOpacity>
             </View>
           )}
+
+          <View
+            className="home-balance-card mb-3"
+            style={{ paddingVertical: 16, paddingHorizontal: 16 }}
+          >
+            <View className="flex-row justify-between items-center">
+              <View>
+                <Text className="text-text-muted" style={{ fontSize: 12 }}>
+                  Current Package
+                </Text>
+                <Text
+                  className="text-text font-inter-bold"
+                  style={{ marginTop: 4, fontSize: 16, textTransform: "capitalize" }}
+                >
+                  {orgPlan === "pro" ? "Pro" : "Basic"}
+                </Text>
+              </View>
+              {orgPlan !== "pro" && (
+                <TouchableOpacity
+                  onPress={() => router.push("./upgrade")}
+                  style={{
+                    borderRadius: 8,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                  }}
+                  className="bg-primary"
+                >
+                  <Text className="text-text font-inter-bold" style={{ fontSize: 12 }}>
+                    Upgrade
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
 
           {/*
             Address / phone / cell / NTN / sales tax no. shown here purely
