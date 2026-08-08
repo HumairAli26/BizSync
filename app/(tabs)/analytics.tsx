@@ -4,6 +4,7 @@ import { Colors } from "@/constants/theme";
 import { getCurrentMonthYear } from "@/lib/currentMonth";
 import { File, Paths } from "expo-file-system";
 import * as Print from "expo-print";
+import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { styled } from "nativewind";
@@ -372,6 +373,7 @@ const Analytics = () => {
   const [orgNtn, setOrgNtn] = useState<string>("");
   const [orgSalesTaxNo, setOrgSalesTaxNo] = useState<string>("");
   const [signedInUserName, setSignedInUserName] = useState<string>("");
+  const [orgPlan, setOrgPlan] = useState<string>("basic");
 
   const activeMonths = useMemo(() => getActiveMonths(), []);
 
@@ -415,6 +417,17 @@ const Analytics = () => {
       }
     });
 
+    return unsubscribe;
+  }, [orgId]);
+
+  // Subscription plan — source of truth is organizations/{orgId}.subscription.plan
+  useEffect(() => {
+    if (!orgId) return;
+    const unsubscribe = onSnapshot(doc(db, "organizations", orgId), (snapshot) => {
+      if (snapshot.exists()) {
+        setOrgPlan(snapshot.data().subscription?.plan ?? "basic");
+      }
+    });
     return unsubscribe;
   }, [orgId]);
 
@@ -731,6 +744,17 @@ const Analytics = () => {
   };
 
   const handleDownloadDailyLedger = async () => {
+    if (orgPlan !== "pro") {
+      Alert.alert(
+        "Pro Feature",
+        "Daily Ledger is available on the Pro plan. Upgrade to unlock it.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Upgrade", onPress: () => router.push("/upgrade") },
+        ],
+      );
+      return;
+    }
     if (!orgId) { Alert.alert("Error", "No organization ID found."); return; }
     setLoadingLedger(true);
     try {
@@ -772,6 +796,17 @@ const Analytics = () => {
   };
 
   const handleDownloadWeeklyLedger = async () => {
+    if (orgPlan !== "pro") {
+      Alert.alert(
+        "Pro Feature",
+        "Weekly Ledger is available on the Pro plan. Upgrade to unlock it.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Upgrade", onPress: () => router.push("/upgrade") },
+        ],
+      );
+      return;
+    }
     if (!orgId) { Alert.alert("Error", "No organization ID found."); return; }
     setLoadingWeeklyLedger(true);
     try {
@@ -1181,7 +1216,9 @@ const Analytics = () => {
               {loadingLedger ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.ledgerBtnText}>📄 Daily Ledger</Text>
+                <Text style={styles.ledgerBtnText}>
+                  {orgPlan === "pro" ? "📄 Daily Ledger" : "🔒 Daily Ledger"}
+                </Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity
@@ -1197,7 +1234,9 @@ const Analytics = () => {
               {loadingWeeklyLedger ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.ledgerBtnText}>📅 Weekly Ledger</Text>
+                <Text style={styles.ledgerBtnText}>
+                  {orgPlan === "pro" ? "📅 Weekly Ledger" : "🔒 Weekly Ledger"}
+                </Text>
               )}
             </TouchableOpacity>
           </View>

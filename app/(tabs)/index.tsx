@@ -31,13 +31,13 @@ export default function App() {
             style={
               isDesktop
                 ? {
-                    width: "100%",
-                    maxWidth: 1400,
-                    alignSelf: "center",
-                    paddingTop: 8,
-                    paddingBottom: 24,
-                    gap: 24,
-                  }
+                  width: "100%",
+                  maxWidth: 1400,
+                  alignSelf: "center",
+                  paddingTop: 8,
+                  paddingBottom: 24,
+                  gap: 24,
+                }
                 : { gap: 20, paddingVertical: 10 }
             }
           >
@@ -75,6 +75,7 @@ export default function App() {
               </View>
             ) : (
               <View style={{ gap: 20 }}>
+                <RevenueGraph />
                 <ListHeadings title="Recent Transactions" button="See All" />
                 <RecentTransactions />
                 <ListHeadings title="Best Selling" button="View All" />

@@ -1,13 +1,19 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
+    //"ignoreDeprecations": "6.0",
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@firebase/auth": ["./node_modules/@firebase/auth/dist/rn/index.d.ts"],
-      "firebase/auth": ["./node_modules/@firebase/auth/dist/rn/index.d.ts"],
-      "@/*": ["./*"]
+      "@firebase/auth": [
+        "./node_modules/@firebase/auth/dist/rn/index.d.ts"
+      ],
+      "firebase/auth": [
+        "./node_modules/@firebase/auth/dist/rn/index.d.ts"
+      ],
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [

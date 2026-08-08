@@ -11,16 +11,19 @@ const Products = icons.products;
 const Invoices = icons.invoices;
 const TrendUp = icons.trendup;
 
-// Pakistani Rupee formatting (Rs. 1,23,456 style) — matches invoices/customers
+// Pakistani Rupee formatting (Rs. 1,23,456 style) — matches invoices/customers.
+// Negative totals (e.g. a month where purchase payments/refunds outweigh
+// sales) now keep their sign instead of being silently abs()'d away.
 const formatPKR = (amount: number | null | undefined) => {
   const value = typeof amount === "number" && !isNaN(amount) ? amount : 0;
+  const isNegative = value < 0;
   const fixed = Math.round(Math.abs(value)).toString();
   let lastThree = fixed.slice(-3);
   const otherNumbers = fixed.slice(0, -3);
   if (otherNumbers !== "") lastThree = "," + lastThree;
   const formattedInt =
     otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + lastThree;
-  return `Rs. ${formattedInt}`;
+  return `Rs. ${isNegative ? "-" : ""}${formattedInt}`;
 };
 
 const getPKRParts = (amount: number | null | undefined) => {
