@@ -2,35 +2,36 @@ import { auth, db } from "@/config/firebaseConfig";
 import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
 import {
-    validateNonNegativeNumber,
-    validatePositiveInteger,
-    validateRequiredText,
+  validateNonNegativeNumber,
+  validatePositiveInteger,
+  validateRequiredText,
 } from "@/lib/validation";
+import { router } from "expo-router";
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    onSnapshot,
-    orderBy,
-    query,
-    updateDoc,
-    where,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  updateDoc,
+  where,
 } from "firebase/firestore";
 import { styled } from "nativewind";
 import React, { useMemo, useState } from "react";
 import {
-    Alert,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-    useWindowDimensions,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
@@ -40,6 +41,9 @@ const MoreIcon = icons.moreVertical ?? icons.more;
 
 const SafeAreaView = styled(RNSafeAreaView);
 const DESKTOP_BREAKPOINT = 900;
+
+// Basic-plan monthly quotation cap — Pro orgs are unlimited.
+const BASIC_MONTHLY_QUOTATION_LIMIT = 5;
 
 type QuotationStatus =
   "accepted" | "pending" | "rejected" | "expired" | "converted";
@@ -221,6 +225,7 @@ const QuotationsScreen = () => {
   );
 
   const [orgId, setOrgId] = useState<string>("");
+  const [orgPlan, setOrgPlan] = useState<string>("basic");
 
   React.useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -235,6 +240,19 @@ const QuotationsScreen = () => {
 
     return unsubscribe;
   }, []);
+
+  // Subscription plan — source of truth is organizations/{orgId}.subscription.plan
+  React.useEffect(() => {
+    if (!orgId) return;
+    const unsubscribe = onSnapshot(doc(db, "organizations", orgId), (snapshot) => {
+      if (snapshot.exists()) {
+        setOrgPlan(snapshot.data().subscription?.plan ?? "basic");
+      }
+    });
+    return unsubscribe;
+  }, [orgId]);
+
+  const isPro = orgPlan === "pro";
 
   React.useEffect(() => {
     if (!orgId) return;
@@ -328,6 +346,38 @@ const QuotationsScreen = () => {
 
     return { totalPending, totalAccepted, totalConverted };
   }, [quotations]);
+
+  // How many quotations this org has created in the current calendar month —
+  // drives the Basic-plan cap below.
+  const quotationsThisMonth = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const monthEnd = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      1,
+    ).getTime();
+    return quotations.filter(
+      (qt) =>
+        typeof qt.createdAt === "number" &&
+        qt.createdAt >= monthStart &&
+        qt.createdAt < monthEnd,
+    ).length;
+  }, [quotations]);
+
+  const quotationLimitReached =
+    !isPro && quotationsThisMonth >= BASIC_MONTHLY_QUOTATION_LIMIT;
+
+  const promptQuotationUpgrade = () => {
+    Alert.alert(
+      "Monthly Limit Reached",
+      `Basic plan is limited to ${BASIC_MONTHLY_QUOTATION_LIMIT} quotations per month. Upgrade to Pro for unlimited quotations.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Upgrade", onPress: () => router.push("/upgrade") },
+      ],
+    );
+  };
 
   const addItemRow = () => {
     setItemDrafts((rows) => [
@@ -482,6 +532,15 @@ const QuotationsScreen = () => {
   };
 
   const handleAddQuotation = async () => {
+    // Re-check the cap at submit time too — the modal could have been open
+    // for a while, or another device on the same org could have added
+    // quotations in the meantime.
+    if (quotationLimitReached) {
+      setAddModalVisible(false);
+      promptQuotationUpgrade();
+      return;
+    }
+
     if (
       !validateRequiredText(newQuotation.client) ||
       !validateRequiredText(newQuotation.quotationNumber)
@@ -626,6 +685,15 @@ const QuotationsScreen = () => {
     setExpandedId(expandedId === id ? null : id);
   };
 
+  const handleNewQuotationPress = () => {
+    if (quotationLimitReached) {
+      promptQuotationUpgrade();
+      return;
+    }
+    resetAddModal();
+    setAddModalVisible(true);
+  };
+
   const pendingParts = getPKRParts(stats.totalPending);
   const acceptedParts = getPKRParts(stats.totalAccepted);
   const convertedParts = getPKRParts(stats.totalConverted);
@@ -645,10 +713,7 @@ const QuotationsScreen = () => {
           </View>
           <View className="ml-3 flex-row items-center">
             <TouchableOpacity
-              onPress={() => {
-                resetAddModal();
-                setAddModalVisible(true);
-              }}
+              onPress={handleNewQuotationPress}
               style={{
                 borderRadius: 12,
                 paddingHorizontal: 25,
@@ -660,11 +725,56 @@ const QuotationsScreen = () => {
                 style={{ fontSize: Spacing[4] }}
                 className="text-text font-inter-bold"
               >
-                + New Quotation
+                {quotationLimitReached ? "🔒 New Quotation" : "+ New Quotation"}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Basic-plan monthly usage indicator */}
+        {!isPro && (
+          <TouchableOpacity
+            onPress={() => router.push("/upgrade")}
+            activeOpacity={0.8}
+            style={{
+              marginTop: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: quotationLimitReached
+                ? "rgba(239,68,68,0.1)"
+                : "rgba(255,255,255,0.05)",
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: quotationLimitReached
+                ? "rgba(239,68,68,0.3)"
+                : "rgba(255,255,255,0.08)",
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                color: quotationLimitReached ? "#ef4444" : Colors.textMuted,
+                fontWeight: "600",
+              }}
+            >
+              {quotationLimitReached
+                ? `Monthly limit reached (${quotationsThisMonth}/${BASIC_MONTHLY_QUOTATION_LIMIT}) — upgrade for unlimited`
+                : `${quotationsThisMonth}/${BASIC_MONTHLY_QUOTATION_LIMIT} quotations used this month`}
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: Colors.primary ?? "#4b7c59",
+                fontWeight: "700",
+              }}
+            >
+              Upgrade
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Search */}
@@ -675,13 +785,13 @@ const QuotationsScreen = () => {
           alignItems: "center",
           ...(isDesktop
             ? {
-                alignSelf: "flex-start",
-                width: "100%",
-                maxWidth: 420,
-                height: 48,
-                overflow: "hidden",
-                marginBottom: 24,
-              }
+              alignSelf: "flex-start",
+              width: "100%",
+              maxWidth: 420,
+              height: 48,
+              overflow: "hidden",
+              marginBottom: 24,
+            }
             : null),
         }}
       >

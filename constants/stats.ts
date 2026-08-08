@@ -2,16 +2,16 @@ import { chartRev, invoices, products } from "@/constants/data";
 
 type InvoiceLike =
   | {
-      status?: string | null;
-      amount?: number | string | null;
-    }
+    status?: string | null;
+    amount?: number | string | null;
+  }
   | null
   | undefined;
 
 type ProductLike =
   | {
-      stock?: number | string | null;
-    }
+    stock?: number | string | null;
+  }
   | null
   | undefined;
 
@@ -110,13 +110,24 @@ export function getRevenueChange(today: number, yesterday: number) {
     return { Icon: TrendUp, color: Colors.textMuted, value: "--" };
   }
   const diff = today - yesterday;
-  const percent = yesterday === 0 ? 100 : (diff / yesterday) * 100;
+  const rawPercent = yesterday === 0 ? 100 : (diff / yesterday) * 100;
   const isUp = diff >= 0;
+
+  // Clamp the displayed magnitude to 1-100%. A tiny real change (e.g.
+  // 0.03%) would otherwise round to "0.0%" and look identical to no
+  // change at all, and a huge one (common when `yesterday` is near zero)
+  // could show something like "+2400.0%", which isn't meaningful at a
+  // glance. A genuine zero difference (today === yesterday) is left at
+  // 0% rather than floored to 1%, since that's "no change," not an
+  // increase or decrease.
+  const magnitude = Math.abs(rawPercent);
+  const clampedMagnitude =
+    diff === 0 ? 0 : Math.min(Math.max(magnitude, 1), 100);
 
   return {
     Icon: isUp ? TrendUp : TrendDown,
     color: isUp ? Colors.green : Colors.warning,
-    value: `${isUp ? "+" : ""}${percent.toFixed(1)}%`,
+    value: `${diff === 0 ? "" : isUp ? "+" : "-"}${clampedMagnitude.toFixed(1)}%`,
   };
 }
 

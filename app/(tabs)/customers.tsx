@@ -6,6 +6,7 @@ import {
   validateGoogleEmail,
   validateRequiredText,
 } from "@/lib/validation";
+import { router } from "expo-router";
 import {
   addDoc,
   collection,
@@ -16,6 +17,7 @@ import {
   query,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { styled } from "nativewind";
 import React, { useMemo, useState } from "react";
@@ -124,6 +126,7 @@ const Customers = () => {
   const [editDraft, setEditDraft] = useState<Partial<Customer>>({});
   const [savingEdit, setSavingEdit] = useState(false);
   const [orgId, setOrgId] = useState<string>("");
+  const [orgPlan, setOrgPlan] = useState<string>("basic");
 
   React.useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -134,7 +137,20 @@ const Customers = () => {
     return unsubscribe;
   }, []);
 
-  // Real-time Firestore listener for customers — now actually scoped by orgId
+  // Subscription plan — source of truth is organizations/{orgId}.subscription.plan
+  React.useEffect(() => {
+    if (!orgId) return;
+    const unsubscribe = onSnapshot(doc(db, "organizations", orgId), (snapshot) => {
+      if (snapshot.exists()) {
+        setOrgPlan(snapshot.data().subscription?.plan ?? "basic");
+      }
+    });
+    return unsubscribe;
+  }, [orgId]);
+
+  const isPro = orgPlan === "pro";
+
+  // Real-time Firestore listener for customers — scoped by orgId
   React.useEffect(() => {
     if (!orgId) return;
     const q = query(
@@ -160,7 +176,7 @@ const Customers = () => {
     return () => unsubscribe();
   }, [orgId]);
 
-  // Real-time Firestore listener for invoices (used to compute orders + lifetime value)
+  // Real-time Firestore listener for invoices
   React.useEffect(() => {
     if (!orgId) return;
     const q = query(collection(db, "invoices"), where("orgId", "==", orgId));
@@ -181,7 +197,6 @@ const Customers = () => {
   }, [orgId]);
 
   // Aggregate order count + lifetime value per customer by matching client name.
-  // Lifetime value uses money actually collected (amountPaid), not the invoice total.
   const statsByCustomer = useMemo(() => {
     const map: Record<string, { orders: number; lifetimeValue: number }> = {};
     for (const invoice of invoices) {
@@ -202,7 +217,10 @@ const Customers = () => {
       map[key] = invoices
         .filter((invoice) => {
           if (invoice.customerId) return invoice.customerId === customer.id;
-          return normalize(invoice.client || "") === normalizedName;
+          return (
+            normalize(invoice.client || "") === normalizedName ||
+            normalize(invoice.customerName || "") === normalizedName
+          );
         })
         .sort((a, b) => {
           const ad = new Date(a.date ?? 0).getTime();
@@ -226,9 +244,10 @@ const Customers = () => {
   }, [customers, search]);
 
   const handleAddCustomer = async () => {
+    const trimmedName = newCustomer.name.trim();
     const normalizedEmail = sanitizeEmail(newCustomer.email);
 
-    if (!validateRequiredText(newCustomer.name)) {
+    if (!validateRequiredText(trimmedName)) {
       Alert.alert("Missing info", "Customer name is required.");
       return;
     }
@@ -242,13 +261,41 @@ const Customers = () => {
 
     setSavingAdd(true);
     try {
-      await addDoc(collection(db, "customers"), {
+      // 1. Create the customer document
+      const customerRef = await addDoc(collection(db, "customers"), {
         orgId,
-        name: newCustomer.name.trim(),
+        name: trimmedName,
         email: normalizedEmail,
         status: "active",
         createdAt: Date.now(),
       });
+
+      // 2. Automatically link existing matching invoices using a batch write
+      //    — Pro-only. Basic orgs skip this; invoices still show up in the
+      //    expanded view via name-matching, but the customerId link (and
+      //    the locked "Linked Invoices" list) stay Pro-gated.
+      if (isPro) {
+        const normalizedNewName = normalize(trimmedName);
+        const matchingInvoices = invoices.filter((inv) => {
+          if (inv.customerId) return false; // Already explicitly linked
+          const clientMatch = normalize(inv.client || "") === normalizedNewName;
+          const nameMatch = normalize(inv.customerName || "") === normalizedNewName;
+          return clientMatch || nameMatch;
+        });
+
+        if (matchingInvoices.length > 0) {
+          const batch = writeBatch(db);
+          for (const inv of matchingInvoices) {
+            const invRef = doc(db, "invoices", inv.id);
+            batch.update(invRef, {
+              customerId: customerRef.id,
+              customerName: trimmedName,
+            });
+          }
+          await batch.commit();
+        }
+      }
+
       setNewCustomer({ name: "", email: "" });
       setAddModalVisible(false);
     } catch (error) {
@@ -667,14 +714,77 @@ const Customers = () => {
                       </View>
                     ) : (
                       <View>
-                        <Text
-                          className="text-text font-inter-bold"
-                          style={{ fontSize: 13, marginBottom: 8 }}
+                        <View
+                          className="flex-row items-center justify-between"
+                          style={{ marginBottom: 8 }}
                         >
-                          Linked Invoices ({customerInvoices.length})
-                        </Text>
+                          <Text
+                            className="text-text font-inter-bold"
+                            style={{ fontSize: 13 }}
+                          >
+                            Linked Invoices
+                            {isPro ? ` (${customerInvoices.length})` : ""}
+                          </Text>
+                          {!isPro && (
+                            <View
+                              style={{
+                                backgroundColor: "rgba(255,255,255,0.08)",
+                                paddingHorizontal: 8,
+                                paddingVertical: 3,
+                                borderRadius: 10,
+                              }}
+                            >
+                              <Text
+                                style={{ fontSize: 10, color: Colors.textMuted }}
+                              >
+                                🔒 Pro
+                              </Text>
+                            </View>
+                          )}
+                        </View>
 
-                        {customerInvoices.length === 0 ? (
+                        {!isPro ? (
+                          <View
+                            style={{
+                              backgroundColor: "rgba(255,255,255,0.04)",
+                              borderRadius: 10,
+                              padding: 14,
+                              marginBottom: 10,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text
+                              className="text-text-muted font-inter"
+                              style={{
+                                fontSize: 12,
+                                textAlign: "center",
+                                marginBottom: 10,
+                              }}
+                            >
+                              Upgrade to Pro to automatically link this
+                              customer's invoices for one-tap billing history.
+                            </Text>
+                            <TouchableOpacity
+                              onPress={(e: any) => {
+                                e.stopPropagation?.();
+                                router.push("/upgrade");
+                              }}
+                              style={{
+                                backgroundColor: Colors.primary ?? "#4b7c59",
+                                borderRadius: 10,
+                                paddingHorizontal: 16,
+                                paddingVertical: 8,
+                              }}
+                            >
+                              <Text
+                                className="text-text font-inter-bold"
+                                style={{ fontSize: 12 }}
+                              >
+                                Upgrade to Pro
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : customerInvoices.length === 0 ? (
                           <Text
                             className="text-text-muted font-inter"
                             style={{ fontSize: 12, marginBottom: 10 }}
