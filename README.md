@@ -263,6 +263,7 @@ BizSync/
 │   │   ├── Customers
 │   │   ├── Analytics
 │   │   └── Settings
+    │   └── Upgrade
 │   │
 │   ├── _layout.tsx
 │   └── index.tsx
