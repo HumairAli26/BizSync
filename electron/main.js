@@ -30,7 +30,7 @@ function createWindow() {
     width: 1400,
     height: 900,
     autoHideMenuBar: true,
-    icon: path.join(__dirname, "assets", "favicon.ico"),
+    icon: path.join(__dirname, "builds", "favicon.ico"),
   });
 
   win.loadURL("http://localhost:3000");

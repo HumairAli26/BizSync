@@ -1,0 +1,204 @@
+[debug] [2026-08-10T16:43:48.530Z] ----------------------------------------------------------------------
+[debug] [2026-08-10T16:43:48.535Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\humai\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:expireSubscriptions
+[debug] [2026-08-10T16:43:48.536Z] CLI Version:   15.26.0
+[debug] [2026-08-10T16:43:48.536Z] Platform:      win32
+[debug] [2026-08-10T16:43:48.537Z] Node Version:  v24.15.0
+[debug] [2026-08-10T16:43:48.537Z] Detected Agent: unknown
+[debug] [2026-08-10T16:43:48.538Z] Time:          Mon Aug 10 2026 21:43:48 GMT+0500 (Pakistan Standard Time)
+[debug] [2026-08-10T16:43:48.538Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-08-10T16:43:51.917Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-08-10T16:43:51.919Z] > authorizing via signed-in user (humairali2612@gmail.com)
+[debug] [2026-08-10T16:43:51.920Z] [iam] checking project bizsync-634bf for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-08-10T16:43:52.006Z] Checked if tokens are valid: false, expires at: 1786379887957
+[debug] [2026-08-10T16:43:52.007Z] Checked if tokens are valid: false, expires at: 1786379887957
+[debug] [2026-08-10T16:43:52.008Z] > refreshing access token with scopes: []
+[debug] [2026-08-10T16:43:52.025Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-08-10T16:43:52.027Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-08-10T16:43:53.018Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-08-10T16:43:53.018Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-08-10T16:43:53.364Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions [none]
+[debug] [2026-08-10T16:43:53.365Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions  x-goog-user-project=bizsync-634bf
+[debug] [2026-08-10T16:43:53.365Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-08-10T16:43:55.351Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions 200
+[debug] [2026-08-10T16:43:55.352Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-08-10T16:43:55.353Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:43:55.353Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:43:55.353Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/bizsync-634bf/serviceAccounts/bizsync-634bf@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-08-10T16:43:55.354Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/bizsync-634bf/serviceAccounts/bizsync-634bf@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-08-10T16:43:58.451Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/bizsync-634bf/serviceAccounts/bizsync-634bf@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-08-10T16:43:58.451Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/bizsync-634bf/serviceAccounts/bizsync-634bf@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'bizsync-634bf'...
+[info] 
+[info] i  deploying functions 
+[info] Running command: npm --prefix "$RESOURCE_DIR" run build
+[info] +  functions: Finished running predeploy script. 
+[debug] [2026-08-10T16:44:08.209Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:08.210Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:08.210Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf [none]
+[debug] [2026-08-10T16:44:09.823Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf 200
+[debug] [2026-08-10T16:44:09.824Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf {"projectNumber":"904434688259","projectId":"bizsync-634bf","lifecycleState":"ACTIVE","name":"BizSync","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-07-20T16:56:30.968Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-08-10T16:44:09.855Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:09.855Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:09.855Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/bizsync-634bf/adminSdkConfig [none]
+[debug] [2026-08-10T16:44:10.660Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/bizsync-634bf/adminSdkConfig 200
+[debug] [2026-08-10T16:44:10.660Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/bizsync-634bf/adminSdkConfig {"projectId":"bizsync-634bf","storageBucket":"bizsync-634bf.firebasestorage.app"}
+[debug] [2026-08-10T16:44:10.664Z] Validating nodejs source
+[debug] [2026-08-10T16:44:14.475Z] > [functions] package.json contents: {
+  "name": "functions",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "24"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "firebase-admin": "^14.2.0",
+    "firebase-functions": "^7.3.2"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.4.1",
+    "typescript": "^6.0.0"
+  },
+  "private": true
+}
+[debug] [2026-08-10T16:44:14.476Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-08-10T16:44:14.479Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-08-10T16:44:14.512Z] Found firebase-functions binary at 'C:\Users\humai\.vscode\React\BizSync\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8409
+
+[debug] [2026-08-10T16:44:16.618Z] Got response from /__/functions.yaml {"endpoints":{"expireSubscriptions":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"scheduleTrigger":{"schedule":"every day 00:15","retryConfig":{"retryCount":3},"timeZone":"Asia/Karachi"},"entryPoint":"expireSubscriptions"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}],"extensions":{}}
+[debug] [2026-08-10T16:44:19.692Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:19.692Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:19.692Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v1/projects/bizsync-634bf/locations/-/functions [none]
+[debug] [2026-08-10T16:44:20.854Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v1/projects/bizsync-634bf/locations/-/functions 200
+[debug] [2026-08-10T16:44:20.854Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v1/projects/bizsync-634bf/locations/-/functions {}
+[debug] [2026-08-10T16:44:20.855Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:20.855Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:20.855Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v2/projects/bizsync-634bf/locations/-/functions filter=environment%3D%22GEN_2%22
+[debug] [2026-08-10T16:44:22.273Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v2/projects/bizsync-634bf/locations/-/functions 200
+[debug] [2026-08-10T16:44:22.273Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v2/projects/bizsync-634bf/locations/-/functions {}
+[info] i  extensions: ensuring required API firebaseextensions.googleapis.com is enabled... 
+[debug] [2026-08-10T16:44:22.277Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:22.277Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:22.278Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/bizsync-634bf/services/firebaseextensions.googleapis.com [none]
+[debug] [2026-08-10T16:44:22.278Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/bizsync-634bf/services/firebaseextensions.googleapis.com  x-goog-user-project=bizsync-634bf
+[debug] [2026-08-10T16:44:24.858Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/bizsync-634bf/services/firebaseextensions.googleapis.com 200
+[debug] [2026-08-10T16:44:24.859Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/bizsync-634bf/services/firebaseextensions.googleapis.com [omitted]
+[warn] !  extensions: missing required API firebaseextensions.googleapis.com. Enabling now... 
+[debug] [2026-08-10T16:44:24.860Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:24.860Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:24.860Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/bizsync-634bf/services/firebaseextensions.googleapis.com:enable [none]
+[debug] [2026-08-10T16:44:24.860Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/bizsync-634bf/services/firebaseextensions.googleapis.com:enable  x-goog-user-project=bizsync-634bf
+[debug] [2026-08-10T16:44:26.753Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/bizsync-634bf/services/firebaseextensions.googleapis.com:enable 200
+[debug] [2026-08-10T16:44:26.753Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/bizsync-634bf/services/firebaseextensions.googleapis.com:enable [omitted]
+[debug] [2026-08-10T16:44:37.300Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-08-10T16:44:37.301Z] > authorizing via signed-in user (humairali2612@gmail.com)
+[debug] [2026-08-10T16:44:37.301Z] [iam] checking project bizsync-634bf for permissions ["firebase.projects.get","firebaseextensions.instances.list"]
+[debug] [2026-08-10T16:44:37.301Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:37.302Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:37.302Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions [none]
+[debug] [2026-08-10T16:44:37.302Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions  x-goog-user-project=bizsync-634bf
+[debug] [2026-08-10T16:44:37.302Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions {"permissions":["firebase.projects.get","firebaseextensions.instances.list"]}
+[debug] [2026-08-10T16:44:38.866Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions 200
+[debug] [2026-08-10T16:44:38.866Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bizsync-634bf:testIamPermissions {"permissions":["firebase.projects.get","firebaseextensions.instances.list"]}
+[debug] [2026-08-10T16:44:38.867Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:38.867Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:38.868Z] >>> [apiv2][query] GET https://firebaseextensions.googleapis.com/v1beta/projects/bizsync-634bf/instances pageSize=100&pageToken=
+[debug] [2026-08-10T16:44:49.565Z] *** [apiv2] error from fetch(https://firebaseextensions.googleapis.com/v1beta/projects/bizsync-634bf/instances?pageSize=100&pageToken=, {"headers":{},"method":"GET"}): ConnectTimeoutError: Connect Timeout Error (attempted address: firebaseextensions.googleapis.com:443, timeout: 10000ms)
+[error] !!  extensions: Failed to fetch the list of extensions. Assuming for now that there are no existing extensions. If you are trying to install an extension through Firebase Functions this may fail later. 
+[debug] [2026-08-10T16:44:49.569Z] Attempting to merge .env secret bindings {} into declared secrets...)}
+[debug] [2026-08-10T16:44:49.569Z] expireSubscriptions declared secrets: undefined
+[info] i  functions: preparing functions directory for uploading... 
+[info] i  functions: packaged C:\Users\humai\.vscode\React\BizSync\functions (75.04 KB) for uploading 
+[info] i  functions: ensuring required API cloudscheduler.googleapis.com is enabled... 
+[debug] [2026-08-10T16:44:49.702Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:49.702Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:49.702Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/cloudscheduler.googleapis.com [none]
+[debug] [2026-08-10T16:44:49.702Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/cloudscheduler.googleapis.com  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:44:51.479Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/cloudscheduler.googleapis.com 200
+[debug] [2026-08-10T16:44:51.479Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/cloudscheduler.googleapis.com [omitted]
+[warn] !  functions: missing required API cloudscheduler.googleapis.com. Enabling now... 
+[debug] [2026-08-10T16:44:51.480Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:51.480Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:44:51.480Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/cloudscheduler.googleapis.com:enable [none]
+[debug] [2026-08-10T16:44:51.480Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/cloudscheduler.googleapis.com:enable  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:44:53.390Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/cloudscheduler.googleapis.com:enable 200
+[debug] [2026-08-10T16:44:53.391Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/cloudscheduler.googleapis.com:enable [omitted]
+[info] i  functions: ensuring required API run.googleapis.com is enabled... 
+[debug] [2026-08-10T16:45:03.457Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:03.457Z] Checked if tokens are valid: true, expires at: 1786383832020
+[info] i  functions: ensuring required API eventarc.googleapis.com is enabled... 
+[debug] [2026-08-10T16:45:03.460Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:03.460Z] Checked if tokens are valid: true, expires at: 1786383832020
+[info] i  functions: ensuring required API pubsub.googleapis.com is enabled... 
+[debug] [2026-08-10T16:45:03.462Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:03.462Z] Checked if tokens are valid: true, expires at: 1786383832020
+[info] i  functions: ensuring required API storage.googleapis.com is enabled... 
+[debug] [2026-08-10T16:45:03.468Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:03.468Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:03.468Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/run.googleapis.com [none]
+[debug] [2026-08-10T16:45:03.469Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/run.googleapis.com  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:45:03.471Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/eventarc.googleapis.com [none]
+[debug] [2026-08-10T16:45:03.471Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/eventarc.googleapis.com  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:45:03.473Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/pubsub.googleapis.com [none]
+[debug] [2026-08-10T16:45:03.474Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/pubsub.googleapis.com  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:45:03.476Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/storage.googleapis.com [none]
+[debug] [2026-08-10T16:45:03.476Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/storage.googleapis.com  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:45:04.318Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/run.googleapis.com 200
+[debug] [2026-08-10T16:45:04.318Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/run.googleapis.com [omitted]
+[warn] !  functions: missing required API run.googleapis.com. Enabling now... 
+[debug] [2026-08-10T16:45:04.319Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:04.319Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:04.319Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/run.googleapis.com:enable [none]
+[debug] [2026-08-10T16:45:04.319Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/run.googleapis.com:enable  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:45:05.349Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/eventarc.googleapis.com 200
+[debug] [2026-08-10T16:45:05.350Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/eventarc.googleapis.com [omitted]
+[warn] !  functions: missing required API eventarc.googleapis.com. Enabling now... 
+[debug] [2026-08-10T16:45:05.351Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:05.351Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:05.351Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/eventarc.googleapis.com:enable [none]
+[debug] [2026-08-10T16:45:05.351Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/eventarc.googleapis.com:enable  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:45:05.356Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/pubsub.googleapis.com 200
+[debug] [2026-08-10T16:45:05.356Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/pubsub.googleapis.com [omitted]
+[info] +  functions: required API pubsub.googleapis.com is enabled 
+[debug] [2026-08-10T16:45:05.452Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/storage.googleapis.com 200
+[debug] [2026-08-10T16:45:05.452Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/904434688259/services/storage.googleapis.com [omitted]
+[info] +  functions: required API storage.googleapis.com is enabled 
+[debug] [2026-08-10T16:45:06.233Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/run.googleapis.com:enable 200
+[debug] [2026-08-10T16:45:06.233Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/run.googleapis.com:enable [omitted]
+[debug] [2026-08-10T16:45:07.182Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/eventarc.googleapis.com:enable 200
+[debug] [2026-08-10T16:45:07.182Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/904434688259/services/eventarc.googleapis.com:enable [omitted]
+[info] i  functions: generating the service identity for pubsub.googleapis.com... 
+[debug] [2026-08-10T16:45:17.207Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:17.207Z] Checked if tokens are valid: true, expires at: 1786383832020
+[info] i  functions: generating the service identity for eventarc.googleapis.com... 
+[debug] [2026-08-10T16:45:17.208Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:17.208Z] Checked if tokens are valid: true, expires at: 1786383832020
+[debug] [2026-08-10T16:45:17.208Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1beta1/projects/904434688259/services/pubsub.googleapis.com:generateServiceIdentity [none]
+[debug] [2026-08-10T16:45:17.208Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1beta1/projects/904434688259/services/pubsub.googleapis.com:generateServiceIdentity  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:45:17.208Z] >>> [apiv2][body] POST https://serviceusage.googleapis.com/v1beta1/projects/904434688259/services/pubsub.googleapis.com:generateServiceIdentity {}
+[debug] [2026-08-10T16:45:17.209Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1beta1/projects/904434688259/services/eventarc.googleapis.com:generateServiceIdentity [none]
+[debug] [2026-08-10T16:45:17.209Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1beta1/projects/904434688259/services/eventarc.googleapis.com:generateServiceIdentity  x-goog-user-project=904434688259
+[debug] [2026-08-10T16:45:17.209Z] >>> [apiv2][body] POST https://serviceusage.googleapis.com/v1beta1/projects/904434688259/services/eventarc.googleapis.com:generateServiceIdentity {}
+[debug] [2026-08-10T16:45:27.817Z] *** [apiv2] error from fetch(https://serviceusage.googleapis.com/v1beta1/projects/904434688259/services/eventarc.googleapis.com:generateServiceIdentity, {"headers":{},"method":"POST","body":"{}"}): ConnectTimeoutError: Connect Timeout Error (attempted addresses: 172.217.116.4:443, timeout: 10000ms)
+[debug] [2026-08-10T16:45:27.835Z] *** [apiv2] error from fetch(https://serviceusage.googleapis.com/v1beta1/projects/904434688259/services/pubsub.googleapis.com:generateServiceIdentity, {"headers":{},"method":"POST","body":"{}"}): ConnectTimeoutError: Connect Timeout Error (attempted addresses: 172.217.116.4:443, timeout: 10000ms)
+[debug] [2026-08-10T16:45:32.838Z] Error: Timed out.
+    at Timeout._onTimeout (C:\Users\humai\AppData\Roaming\npm\node_modules\firebase-tools\lib\utils.js:296:49)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+[error] 
+[error] Error: An unexpected error has occurred.

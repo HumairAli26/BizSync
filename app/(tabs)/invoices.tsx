@@ -496,87 +496,6 @@ const InvoicesScreen = () => {
     );
   };
 
-  // Undoes the stock effect of an invoice's ORIGINAL items before applying
-  // the edited set — otherwise stock would be deducted twice (once when the
-  // invoice was first created, again when the edit re-processes the items).
-  const reverseItemStockEffects = async (
-    items: InvoiceItem[] | undefined,
-    invoiceType: InvoiceType,
-  ) => {
-    if (!items || items.length === 0) return;
-    const isPurchase = invoiceType === "purchase";
-
-    for (const item of items) {
-      const match = findProductMatch(
-        products,
-        item.sku || item.name || item.query,
-      );
-      if (match && match.stock !== null && match.stock !== undefined) {
-        const currentStock = Number(match.stock) || 0;
-        // Reverse of what processInvoiceItems originally did:
-        // sales invoices deducted stock -> add it back
-        // purchase invoices added stock -> take it back off
-        const restoredStock = isPurchase
-          ? Math.max(0, currentStock - item.quantity)
-          : currentStock + item.quantity;
-        try {
-          await updateDoc(doc(db, "products", match.id), {
-            stock: restoredStock,
-          });
-        } catch (error) {
-          console.error("Error reversing stock for edited invoice:", error);
-        }
-      }
-    }
-  };
-
-  // Saves item-level edits (quantity/price/add/remove) for an EXISTING
-  // invoice. Reverses the old stock impact first, then re-applies the new
-  // item list exactly the way invoice creation does, so stock stays correct.
-  const saveInvoiceItemEdits = async (invoice: Invoice) => {
-    if (!validateInvoiceDraftRows(editItemDrafts)) return;
-
-    const hasAtLeastOneItem = editItemDrafts.some((d) => d.queryText.trim());
-    if (!hasAtLeastOneItem) {
-      Alert.alert("No items", "Add at least one product with a quantity.");
-      return;
-    }
-
-    setSavingEdit(true);
-    try {
-      const invoiceType = invoice.type ?? "sales";
-      await reverseItemStockEffects(invoice.items, invoiceType);
-      const { items, total } = await processInvoiceItems(editItemDrafts, {
-        invoiceType,
-      });
-
-      const discountAmount = Number(editDraft.discount) || 0;
-      const finalTotal = Math.max(0, total - discountAmount);
-
-      await updateDoc(doc(db, "invoices", invoice.id), {
-        client: (editDraft.client ?? invoice.client).trim(),
-        invoiceNumber: (
-          editDraft.invoiceNumber ?? invoice.invoiceNumber
-        ).trim(),
-        date: editDraft.date ?? invoice.date,
-        status: editDraft.status ?? invoice.status,
-        items,
-        subtotal: total,
-        discount: discountAmount,
-        amount: finalTotal,
-      });
-
-      setEditId(null);
-      setEditDraft({});
-      setEditItemDrafts([]);
-    } catch (error) {
-      console.error("Error saving invoice item edits:", error);
-      Alert.alert("Error", "Could not save item changes. Please try again.");
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
   const resetPurchaseModal = () => {
     setNewPurchaseInvoice({
       vendor: "",
@@ -628,23 +547,59 @@ const InvoicesScreen = () => {
     return true;
   };
 
-  // Resolves each drafted row against the products collection:
-  // - sales invoice: uses existing product price, decrements stock, never overwrites price
-  // - purchase invoice: uses existing product price unless a manual price is
-  //   entered on THIS invoice (in which case that manual price is used for
-  //   the invoice's own line total only), increments stock. It never writes
-  //   back to the product's stored price — a purchase invoice is a record
-  //   of what was actually paid for that batch, not a price update.
-  // - no match -> auto-creates the product (sku + name = whatever was typed),
-  //   leaves price/stock at 0 until filled in
-  const processInvoiceItems = async (
+  // Resolves each drafted row against the products collection AND applies
+  // only the NET stock change per product, in a single pass:
+  //
+  //   deltaQuantity = newQuantity - previousQuantity
+  //
+  // For a brand-new invoice, `previousItems` is omitted, so every line's
+  // "previous quantity" is 0 and deltaQuantity == the full new quantity —
+  // identical to the original creation behavior.
+  //
+  // For an EDIT, `previousItems` is the invoice's items as they stood
+  // before this edit. A product whose quantity didn't change gets
+  // deltaQuantity === 0 and is left untouched. A product whose quantity
+  // went from 4 -> 5 only has 1 unit subtracted/added, not 5. A product
+  // removed from the invoice entirely during the edit gets its full
+  // previous quantity restored.
+  //
+  // This replaces the old two-step "reverse everything, then reapply
+  // everything" approach, which double-counted stock changes because the
+  // second step re-read `products` state before the Firestore listener had
+  // caught up with the first step's writes.
+  //
+  // - sales invoice: uses existing product price unless manually overridden
+  //   for this invoice only; decrements stock by the delta; never writes
+  //   back to the product's stored price.
+  // - purchase invoice: same price behavior; increments stock by the delta.
+  // - no match -> auto-creates the product (sku + name = whatever was
+  //   typed), leaves price/stock at 0 until filled in (stock seeded to the
+  //   new quantity for purchase invoices, since there's no "previous" to
+  //   diff against for a brand-new product).
+  const computeInvoiceItemsAndStockDelta = async (
     drafts: InvoiceItemDraft[],
-    options?: { invoiceType?: InvoiceType },
+    options: { invoiceType: InvoiceType; previousItems?: InvoiceItem[] },
   ): Promise<{ items: InvoiceItem[]; total: number }> => {
+    const invoiceType = options.invoiceType;
+    const isPurchase = invoiceType === "purchase";
+    const previousItems = options.previousItems ?? [];
+
+    // Key previous quantities by the same identity used to resolve a match
+    // (sku, falling back to name/query), so quantities for the "same"
+    // product line accumulate correctly even if it appeared on multiple
+    // rows before.
+    const previousQtyByKey = new Map<string, number>();
+    for (const item of previousItems) {
+      const key = normalize(item.sku || item.name || item.query);
+      previousQtyByKey.set(
+        key,
+        (previousQtyByKey.get(key) ?? 0) + item.quantity,
+      );
+    }
+    const consumedKeys = new Set<string>();
+
     const items: InvoiceItem[] = [];
     let total = 0;
-    const invoiceType = options?.invoiceType ?? "sales";
-    const isPurchase = invoiceType === "purchase";
 
     for (const draft of drafts) {
       const rawQuery = draft.queryText.trim();
@@ -661,6 +616,10 @@ const InvoicesScreen = () => {
         parsedManualPrice >= 0;
 
       const match = findProductMatch(products, rawQuery);
+      const key = normalize(rawQuery);
+      consumedKeys.add(key);
+      const previousQuantity = previousQtyByKey.get(key) ?? 0;
+      const deltaQuantity = quantity - previousQuantity;
 
       if (match) {
         const dbPrice = Number(match.price ?? 0);
@@ -668,27 +627,28 @@ const InvoicesScreen = () => {
         const unitPrice = hasManualPrice ? parsedManualPrice : dbPrice;
         const lineTotal = quantity * unitPrice;
 
-        const productUpdates: Record<string, string | number> = {};
-
-        // Handle stock adjustments only
-        if (match.stock !== null && match.stock !== undefined) {
+        // Only touch stock if the quantity actually changed from before.
+        if (
+          deltaQuantity !== 0 &&
+          match.stock !== null &&
+          match.stock !== undefined
+        ) {
           const currentStock = Number(match.stock) || 0;
-          productUpdates.stock = isPurchase
-            ? currentStock + quantity
-            : Math.max(0, currentStock - quantity);
+          const newStock = isPurchase
+            ? currentStock + deltaQuantity
+            : Math.max(0, currentStock - deltaQuantity);
+          try {
+            await updateDoc(doc(db, "products", match.id), {
+              stock: newStock,
+            });
+          } catch (error) {
+            console.error("Error updating product stock:", error);
+          }
         }
 
         // NOTE: We intentionally REMOVED the block that updates match.price
         // so purchase or sales invoices use the entered price strictly for the
         // invoice line item without altering the master product catalog price.
-
-        if (Object.keys(productUpdates).length > 0) {
-          try {
-            await updateDoc(doc(db, "products", match.id), productUpdates);
-          } catch (error) {
-            console.error("Error updating product stock:", error);
-          }
-        }
 
         items.push({
           query: rawQuery,
@@ -733,10 +693,79 @@ const InvoicesScreen = () => {
       }
     }
 
+    // Any product that was on the invoice before this edit but was removed
+    // entirely (not present in the new drafts at all) needs its stock
+    // effect fully reversed — its "new quantity" is effectively 0.
+    for (const [key, prevQty] of previousQtyByKey.entries()) {
+      if (consumedKeys.has(key)) continue;
+      const match = findProductMatch(products, key);
+      if (match && match.stock !== null && match.stock !== undefined) {
+        const currentStock = Number(match.stock) || 0;
+        const restoredStock = isPurchase
+          ? Math.max(0, currentStock - prevQty)
+          : currentStock + prevQty;
+        try {
+          await updateDoc(doc(db, "products", match.id), {
+            stock: restoredStock,
+          });
+        } catch (error) {
+          console.error("Error restoring stock for removed item:", error);
+        }
+      }
+    }
+
     return {
       items,
       total,
     };
+  };
+
+  // Saves item-level edits (quantity/price/add/remove) for an EXISTING
+  // invoice. Computes only the net stock delta per product against the
+  // invoice's previous items, so unchanged quantities don't touch stock and
+  // changed quantities only move stock by the difference.
+  const saveInvoiceItemEdits = async (invoice: Invoice) => {
+    if (!validateInvoiceDraftRows(editItemDrafts)) return;
+
+    const hasAtLeastOneItem = editItemDrafts.some((d) => d.queryText.trim());
+    if (!hasAtLeastOneItem) {
+      Alert.alert("No items", "Add at least one product with a quantity.");
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const invoiceType = invoice.type ?? "sales";
+      const { items, total } = await computeInvoiceItemsAndStockDelta(
+        editItemDrafts,
+        { invoiceType, previousItems: invoice.items },
+      );
+
+      const discountAmount = Number(editDraft.discount) || 0;
+      const finalTotal = Math.max(0, total - discountAmount);
+
+      await updateDoc(doc(db, "invoices", invoice.id), {
+        client: (editDraft.client ?? invoice.client).trim(),
+        invoiceNumber: (
+          editDraft.invoiceNumber ?? invoice.invoiceNumber
+        ).trim(),
+        date: editDraft.date ?? invoice.date,
+        status: editDraft.status ?? invoice.status,
+        items,
+        subtotal: total,
+        discount: discountAmount,
+        amount: finalTotal,
+      });
+
+      setEditId(null);
+      setEditDraft({});
+      setEditItemDrafts([]);
+    } catch (error) {
+      console.error("Error saving invoice item edits:", error);
+      Alert.alert("Error", "Could not save item changes. Please try again.");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleAddInvoice = async () => {
@@ -763,9 +792,10 @@ const InvoicesScreen = () => {
 
     setSavingAdd(true);
     try {
-      const { items, total } = await processInvoiceItems(itemDrafts, {
-        invoiceType: "sales",
-      });
+      const { items, total } = await computeInvoiceItemsAndStockDelta(
+        itemDrafts,
+        { invoiceType: "sales" },
+      );
       const discountAmount = Math.max(0, parseFloat(newInvoice.discount) || 0);
       const finalTotal = Math.max(0, total - discountAmount);
       const normalizedStatus: InvoiceStatus =
@@ -836,9 +866,10 @@ const InvoicesScreen = () => {
 
     setSavingAdd(true);
     try {
-      const { items, total } = await processInvoiceItems(itemDrafts, {
-        invoiceType: "purchase",
-      });
+      const { items, total } = await computeInvoiceItemsAndStockDelta(
+        itemDrafts,
+        { invoiceType: "purchase" },
+      );
       const normalizedStatus: InvoiceStatus =
         newPurchaseInvoice.status === "paid"
           ? "paid"
