@@ -8,8 +8,7 @@ import { LineChart } from "react-native-gifted-charts";
 type ChartPoint = {
   // null = future month, not plotted yet. Combined with
   // interpolateMissingValues={false} on the chart below, this breaks the
-  // line/area instead of drawing through (or interpolating across) months
-  // that haven't happened yet.
+  // line instead of drawing through months that haven't happened yet.
   value: number | null;
   label: string;
   hideDataPoint?: boolean;
@@ -68,6 +67,7 @@ const RevenueGraph = () => {
 
   const [orgId, setOrgId] = useState<string>("");
   const [data, setData] = useState<ChartPoint[]>([]);
+  const [expenseData, setExpenseData] = useState<ChartPoint[]>([]);
   const [rangeLabel, setRangeLabel] = useState<string>("");
 
   // Measured from the actual chart wrapper via onLayout — but a nested
@@ -127,7 +127,8 @@ const RevenueGraph = () => {
 
     const unsubscribe = onSnapshot(salesQuery, (snapshot) => {
       const months = getCalendarYearMonths();
-      const totals = months.map(() => 0);
+      const revenueTotals = months.map(() => 0);
+      const expenseTotals = months.map(() => 0);
 
       snapshot.docs.forEach((docSnap) => {
         const sale = docSnap.data();
@@ -141,16 +142,26 @@ const RevenueGraph = () => {
             m.month === saleDate.getMonth() &&
             m.year === saleDate.getFullYear(),
         );
-        if (idx !== -1) totals[idx] += amount;
+        if (idx === -1) return;
+
+        if (amount >= 0) {
+          revenueTotals[idx] += amount;
+        } else {
+          expenseTotals[idx] += Math.abs(amount);
+        }
       });
 
       setData(
         months.map((m, i) => ({
-          // Past/current months plot their (never-negative) total. Future
-          // months get null so the line/area simply stops instead of
-          // drawing a fake flat/zero trend for months that haven't
-          // happened yet.
-          value: m.isPast ? Math.max(totals[i], 0) : null,
+          value: m.isPast ? Math.max(revenueTotals[i], 0) : null,
+          label: m.label,
+          hideDataPoint: !m.isPast,
+        })),
+      );
+
+      setExpenseData(
+        months.map((m, i) => ({
+          value: m.isPast ? Math.max(expenseTotals[i], 0) : null,
           label: m.label,
           hideDataPoint: !m.isPast,
         })),
@@ -188,9 +199,16 @@ const RevenueGraph = () => {
           <View className="chart-legend-item">
             <View
               className="size-3 rounded-full"
-              style={{ backgroundColor: Colors.success }}
+              style={{ backgroundColor: Colors.chartRevenue }}
             />
             <Text className="chart-legend-text">Revenue</Text>
+          </View>
+          <View className="chart-legend-item">
+            <View
+              className="size-3 rounded-full"
+              style={{ backgroundColor: Colors.chartExpenses }}
+            />
+            <Text className="chart-legend-text">Expenses</Text>
           </View>
         </View>
       </View>
@@ -209,24 +227,23 @@ const RevenueGraph = () => {
         {chartWidth > 0 && (
           <LineChart
             data={data as any}
+            data2={expenseData as any}
             width={chartWidth}
             height={isDesktop ? 280 : 200}
-            areaChart
             curved
             animateOnDataChange
             // Future months carry a null value. Without this flag the
             // library interpolates a value for them (drawing a fake
-            // projected line); with it, the line/area simply breaks after
-            // the last real (past/current) month while all 12 month
-            // labels still render along the x-axis.
+            // projected line); with it, the lines simply break after the
+            // last real (past/current) month while all 12 month labels
+            // still render along the x-axis.
             interpolateMissingValues={false}
             thickness={isDesktop ? 3 : 2}
-            color={Colors.warning}
-            startFillColor={Colors.success}
-            endFillColor={Colors.success}
-            startOpacity={0.25}
-            endOpacity={0.02}
-            hideDataPoints
+            thickness2={isDesktop ? 3 : 2}
+            color={Colors.chartRevenue}
+            color2={Colors.chartExpenses}
+            hideDataPoints={true}
+            hideDataPoints2={true}
             hideRules={true}
             hideAxesAndRules={false}
             spacing={spacing}

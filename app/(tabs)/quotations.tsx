@@ -6,7 +6,10 @@ import {
   validatePositiveInteger,
   validateRequiredText,
 } from "@/lib/validation";
+import { File, Paths } from "expo-file-system";
+import * as Print from "expo-print";
 import { router } from "expo-router";
+import * as Sharing from "expo-sharing";
 import {
   addDoc,
   collection,
@@ -188,6 +191,203 @@ const findProductMatch = (products: Product[], q: string) => {
   );
 };
 
+// ---- HTML escaping for untrusted Firestore strings ----
+const escapeHtml = (str: string | null | undefined): string => {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+};
+
+const QUOTATION_PDF_CSS = `
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 26px; color: #1a1a1a; font-size: 12px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a1a; padding-bottom: 12px; margin-bottom: 16px; }
+  .org-name { font-size: 19px; font-weight: 700; margin: 0; }
+  .org-details { font-size: 11px; color: #1a1a1a; font-weight: 600; margin-top: 3px; line-height: 1.45; }
+  .doc-title { font-size: 22px; font-weight: 700; text-align: right; margin: 0; color: #1a1a1a; }
+  .doc-meta { text-align: right; font-size: 11px; color: #1a1a1a; font-weight: 600; margin-top: 5px; }
+  .status-badge { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+  .client-block { margin-bottom: 16px; }
+  .client-label { font-size: 10px; text-transform: uppercase; color: #666; font-weight: 700; margin-bottom: 3px; }
+  .client-name { font-size: 14px; font-weight: 700; }
+  .items-table-wrap { border: 1.5px solid #1a1a1a; margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 10px; text-transform: uppercase; font-weight: 700; color: #1a1a1a;
+       letter-spacing: 0.4px; border-bottom: 1.5px solid #1a1a1a; border-right: 1px solid #1a1a1a;
+       padding: 6px 8px; background: #f2f2f2; }
+  th:last-child, td.last-col { border-right: none; }
+  .amount-col { text-align: right; width: 120px; }
+  .totals { margin-top: 14px; display: flex; justify-content: flex-end; }
+  .totals-block { width: 240px; }
+  .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; }
+  .totals-row.grand { border-top: 1.5px solid #1a1a1a; margin-top: 4px; padding-top: 8px; font-size: 15px; font-weight: 700; }
+  .signature-footer { margin-top: 46px; display: flex; justify-content: flex-end; }
+  .signature-block { width: 220px; text-align: left; }
+  .signature-line { border-bottom: 1px solid #1a1a1a; height: 26px; }
+  .signature-field { font-size: 11px; margin-top: 6px; line-height: 1.5; }
+  .signature-field strong { font-weight: 700; }
+  .footer { margin-top: 26px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }
+`;
+
+type QuotationPdfOptions = {
+  quotation: Quotation;
+  orgName: string;
+  orgAddress: string;
+  orgEmail: string;
+  orgPhone: string;
+  orgCell: string;
+  orgNtn: string;
+  orgSalesTaxNo: string;
+  signedInUserName: string;
+};
+
+const buildQuotationHtml = (opts: QuotationPdfOptions): string => {
+  const {
+    quotation,
+    orgName,
+    orgAddress,
+    orgEmail,
+    orgPhone,
+    orgCell,
+    orgNtn,
+    orgSalesTaxNo,
+    signedInUserName,
+  } = opts;
+
+  const meta = STATUS_META[quotation.status] ?? STATUS_META.pending;
+  const items = quotation.items ?? [];
+  const subtotal =
+    quotation.subtotal ?? items.reduce((s, i) => s + i.lineTotal, 0);
+  const discount = quotation.discount ?? 0;
+
+  const rowsHtml =
+    items.length > 0
+      ? items
+          .map((item, idx) => {
+            const td = `padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;`;
+            return `<tr>
+              <td style="${td}">${idx + 1}</td>
+              <td style="${td}">${escapeHtml(item.name)}${!item.matched ? " (new)" : ""}</td>
+              <td style="${td}">${item.quantity}</td>
+              <td style="${td}">${formatPKR(item.unitPrice)}</td>
+              <td class="last-col" style="padding:6px 8px;border-bottom:1px solid #1a1a1a;text-align:right;width:120px;">${formatPKR(item.lineTotal)}</td>
+            </tr>`;
+          })
+          .join("")
+      : `<tr><td colspan="5" style="text-align:center;padding:20px;color:#666;">No items on this quotation.</td></tr>`;
+
+  const hasOrgDetails = Boolean(
+    orgAddress || orgEmail || orgPhone || orgCell || orgNtn || orgSalesTaxNo,
+  );
+  const orgDetailsHtml = hasOrgDetails
+    ? `<div class="org-details">
+        ${orgAddress ? `${escapeHtml(orgAddress)}<br/>` : ""}
+        ${orgEmail ? `${escapeHtml(orgEmail)}<br/>` : ""}
+        ${orgPhone ? `Ph: ${escapeHtml(orgPhone)}` : ""}${orgCell ? ` | Cell: ${escapeHtml(orgCell)}` : ""}<br/>
+        ${orgNtn ? `NTN: ${escapeHtml(orgNtn)}` : ""}${orgSalesTaxNo ? ` | STRN: ${escapeHtml(orgSalesTaxNo)}` : ""}
+      </div>`
+    : "";
+
+  const preparedAt = new Date().toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `<html><head><meta charset="utf-8"/><style>${QUOTATION_PDF_CSS}</style></head><body>
+    <div class="header">
+      <div>
+        <p class="org-name">${escapeHtml(orgName || "Your Business")}</p>
+        ${orgDetailsHtml}
+      </div>
+      <div>
+        <p class="doc-title">QUOTATION</p>
+        <div class="doc-meta">
+          ${escapeHtml(quotation.quotationNumber)}<br/>
+          Date: ${escapeHtml(quotation.date)}
+        </div>
+        <div style="text-align:right;">
+          <span class="status-badge" style="background:${meta.bg};color:${meta.color};">${meta.label}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="client-block">
+      <div class="client-label">Quotation For</div>
+      <div class="client-name">${escapeHtml(quotation.client)}</div>
+    </div>
+
+    <div class="items-table-wrap"><table>
+      <thead><tr>
+        <th style="width:36px;">Sr#</th>
+        <th>Item</th>
+        <th style="width:60px;">Qty</th>
+        <th style="width:110px;">Unit Price</th>
+        <th class="amount-col">Total</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table></div>
+
+    <div class="totals">
+      <div class="totals-block">
+        <div class="totals-row"><span>Subtotal</span><span>${formatPKR(subtotal)}</span></div>
+        ${discount > 0 ? `<div class="totals-row"><span>Discount</span><span>-${formatPKR(discount)}</span></div>` : ""}
+        <div class="totals-row grand"><span>Total</span><span>${formatPKR(quotation.amount)}</span></div>
+      </div>
+    </div>
+
+    <div class="signature-footer"><div class="signature-block">
+      <div class="signature-line"></div>
+      <div class="signature-field"><strong>Signature</strong></div>
+      <div class="signature-field"><strong>Prepared By:</strong> ${escapeHtml(signedInUserName || "Authorized Signatory")}</div>
+      <div class="signature-field"><strong>Date:</strong> ${preparedAt}</div>
+    </div></div>
+
+    <div class="footer">Generated with BizSync — Thank you for your business</div>
+  </body></html>`;
+};
+
+const printHtmlInIsolatedWindow = (
+  html: string,
+  title: string,
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const printWindow = window.open("", "_blank", "width=900,height=1000");
+
+    if (!printWindow) {
+      reject(
+        new Error(
+          "Your browser blocked the print window. Please allow pop-ups for this site and try again.",
+        ),
+      );
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.document.title = title;
+
+    let hasPrinted = false;
+    const triggerPrint = () => {
+      if (hasPrinted) return;
+      hasPrinted = true;
+      printWindow.focus();
+      printWindow.print();
+      resolve();
+    };
+
+    printWindow.onload = triggerPrint;
+    setTimeout(triggerPrint, 300);
+  });
+};
+
 let draftIdCounter = 1;
 const nextDraftId = () => String(draftIdCounter++);
 
@@ -205,6 +405,7 @@ const QuotationsScreen = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Quotation>>({});
   const [savingEdit, setSavingEdit] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [savingAdd, setSavingAdd] = useState(false);
@@ -227,6 +428,18 @@ const QuotationsScreen = () => {
   const [orgId, setOrgId] = useState<string>("");
   const [orgPlan, setOrgPlan] = useState<string>("basic");
 
+  // Org branding for the quotation PDF header — same admin-doc lookup
+  // pattern used on the Invoices screen, so a non-admin teammate's
+  // downloaded quotation still shows the business's address/contact info.
+  const [orgName, setOrgName] = useState<string>("");
+  const [orgEmail, setOrgEmail] = useState<string>("");
+  const [orgPhone, setOrgPhone] = useState<string>("");
+  const [orgCell, setOrgCell] = useState<string>("");
+  const [orgAddress, setOrgAddress] = useState<string>("");
+  const [orgNtn, setOrgNtn] = useState<string>("");
+  const [orgSalesTaxNo, setOrgSalesTaxNo] = useState<string>("");
+  const [signedInUserName, setSignedInUserName] = useState<string>("");
+
   React.useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -235,6 +448,7 @@ const QuotationsScreen = () => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         setOrgId(data.orgId ?? "");
+        setSignedInUserName(data.name ?? auth.currentUser?.displayName ?? "");
       }
     });
 
@@ -244,15 +458,49 @@ const QuotationsScreen = () => {
   // Subscription plan — source of truth is organizations/{orgId}.subscription.plan
   React.useEffect(() => {
     if (!orgId) return;
-    const unsubscribe = onSnapshot(doc(db, "organizations", orgId), (snapshot) => {
-      if (snapshot.exists()) {
-        setOrgPlan(snapshot.data().subscription?.plan ?? "basic");
-      }
-    });
+    const unsubscribe = onSnapshot(
+      doc(db, "organizations", orgId),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setOrgPlan(snapshot.data().subscription?.plan ?? "basic");
+        }
+      },
+    );
     return unsubscribe;
   }, [orgId]);
 
   const isPro = orgPlan === "pro";
+
+  // Org branding (address/phone/cell/NTN/sales tax no, org name, org email)
+  // from whichever teammate has role "admin" — mirrors the Invoices screen.
+  React.useEffect(() => {
+    if (!orgId) return;
+    const q = query(
+      collection(db, "users"),
+      where("orgId", "==", orgId),
+      where("role", "==", "admin"),
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const adminDoc = snapshot.docs[0];
+        if (adminDoc) {
+          const data = adminDoc.data();
+          setOrgName(data.orgName ?? "");
+          setOrgEmail(data.orgEmail ?? "");
+          setOrgPhone(data.orgPhone ?? "");
+          setOrgCell(data.orgCell ?? "");
+          setOrgAddress(data.orgAddress ?? "");
+          setOrgNtn(data.orgNtn ?? "");
+          setOrgSalesTaxNo(data.orgSalesTaxNo ?? "");
+        }
+      },
+      (error) => {
+        console.error("Org admin details listener error (quotations):", error);
+      },
+    );
+    return () => unsubscribe();
+  }, [orgId]);
 
   React.useEffect(() => {
     if (!orgId) return;
@@ -694,6 +942,56 @@ const QuotationsScreen = () => {
     setAddModalVisible(true);
   };
 
+  // Generates a PDF for the quotation and opens the native share sheet —
+  // on Android/iOS, WhatsApp shows up there automatically as a share
+  // target (same as any other app that accepts PDF files), so "send on
+  // WhatsApp" is just: Download -> pick WhatsApp -> pick the chat.
+  // On web there's no native share sheet, so it opens the browser's print
+  // dialog (Save as PDF) instead — the user can then attach that file in
+  // WhatsApp Web manually.
+  const handleDownloadQuotation = async (quotation: Quotation) => {
+    setDownloadingId(quotation.id);
+    try {
+      const html = buildQuotationHtml({
+        quotation,
+        orgName,
+        orgAddress,
+        orgEmail,
+        orgPhone,
+        orgCell,
+        orgNtn,
+        orgSalesTaxNo,
+        signedInUserName,
+      });
+
+      const fileBaseName = `quotation_${quotation.quotationNumber.replace(/[^a-zA-Z0-9-]/g, "_")}`;
+
+      if (Platform.OS === "web") {
+        await printHtmlInIsolatedWindow(html, fileBaseName);
+        return;
+      }
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const dest = new File(Paths.cache, `${fileBaseName}.pdf`);
+      if (dest.exists) dest.delete();
+      new File(uri).copy(dest);
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(dest.uri, {
+          mimeType: "application/pdf",
+          dialogTitle: `Quotation ${quotation.quotationNumber}`,
+          UTI: "com.adobe.pdf",
+        });
+      }
+    } catch (error) {
+      console.error("Quotation PDF generation failed:", error);
+      Alert.alert("Error", "Could not generate the quotation PDF.");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const pendingParts = getPKRParts(stats.totalPending);
   const acceptedParts = getPKRParts(stats.totalAccepted);
   const convertedParts = getPKRParts(stats.totalConverted);
@@ -785,13 +1083,13 @@ const QuotationsScreen = () => {
           alignItems: "center",
           ...(isDesktop
             ? {
-              alignSelf: "flex-start",
-              width: "100%",
-              maxWidth: 420,
-              height: 48,
-              overflow: "hidden",
-              marginBottom: 24,
-            }
+                alignSelf: "flex-start",
+                width: "100%",
+                maxWidth: 420,
+                height: 48,
+                overflow: "hidden",
+                marginBottom: 24,
+              }
             : null),
         }}
       >
@@ -979,6 +1277,7 @@ const QuotationsScreen = () => {
             const meta = STATUS_META[quotation.status] ?? STATUS_META.pending;
             const isExpanded = expandedId === quotation.id;
             const isEditing = editId === quotation.id;
+            const isDownloading = downloadingId === quotation.id;
 
             return (
               <View
@@ -1051,6 +1350,33 @@ const QuotationsScreen = () => {
                   </View>
 
                   <View className="flex-row items-center gap-2">
+                    <TouchableOpacity
+                      disabled={isDownloading}
+                      onPress={(e: any) => {
+                        e.stopPropagation?.();
+                        handleDownloadQuotation(quotation);
+                      }}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 10,
+                        backgroundColor: "rgba(255,255,255,0.08)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: isDownloading ? 0.5 : 1,
+                      }}
+                    >
+                      {DownloadIcon ? (
+                        <DownloadIcon
+                          color={Colors.text}
+                          width={16}
+                          height={16}
+                        />
+                      ) : (
+                        <Text className="text-text">⬇</Text>
+                      )}
+                    </TouchableOpacity>
+
                     <TouchableOpacity
                       onPress={(e: any) => {
                         e.stopPropagation?.();
@@ -1228,6 +1554,31 @@ const QuotationsScreen = () => {
                       </View>
                     ) : (
                       <View className="flex-row flex-wrap gap-3">
+                        <TouchableOpacity
+                          disabled={isDownloading}
+                          onPress={(e: any) => {
+                            e.stopPropagation?.();
+                            handleDownloadQuotation(quotation);
+                          }}
+                          style={{
+                            flex: 1,
+                            minWidth: 120,
+                            backgroundColor: "rgba(59,130,246,0.15)",
+                            borderRadius: 10,
+                            paddingVertical: 10,
+                            alignItems: "center",
+                            opacity: isDownloading ? 0.6 : 1,
+                          }}
+                        >
+                          <Text
+                            style={{ color: "#3b82f6" }}
+                            className="font-inter-bold"
+                          >
+                            {isDownloading
+                              ? "Preparing..."
+                              : "Download / Share"}
+                          </Text>
+                        </TouchableOpacity>
                         <TouchableOpacity
                           onPress={(e: any) => {
                             e.stopPropagation?.();

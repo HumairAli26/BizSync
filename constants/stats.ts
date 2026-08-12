@@ -1,17 +1,19 @@
 import { chartRev, invoices, products } from "@/constants/data";
+import { icons } from "@/constants/icons";
+import { Colors } from "@/constants/theme";
 
 type InvoiceLike =
   | {
-    status?: string | null;
-    amount?: number | string | null;
-  }
+      status?: string | null;
+      amount?: number | string | null;
+    }
   | null
   | undefined;
 
 type ProductLike =
   | {
-    stock?: number | string | null;
-  }
+      stock?: number | string | null;
+    }
   | null
   | undefined;
 
@@ -29,6 +31,69 @@ const isInvoiceStatus = (invoice: InvoiceLike, status: string): boolean =>
   invoice?.status === status;
 const getProductStock = (product: ProductLike): number =>
   toNumber(product?.stock);
+
+const parseInvoiceDate = (value: string | number | Date | null | undefined) => {
+  if (!value) return null;
+
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getMonthlyInvoiceTotal = (
+  sourceInvoices: {
+    date?: string | number | Date | null;
+    amount?: number | string | null;
+  }[],
+): number => {
+  const datedInvoices = sourceInvoices
+    .map((invoice) => ({ invoice, date: parseInvoiceDate(invoice.date) }))
+    .filter(
+      (
+        item,
+      ): item is {
+        invoice: {
+          date?: string | number | Date | null;
+          amount?: number | string | null;
+        };
+        date: Date;
+      } => item.date !== null,
+    );
+
+  if (datedInvoices.length === 0) {
+    return 0;
+  }
+
+  const now = new Date();
+  const currentMonthInvoices = datedInvoices.filter(
+    ({ date }) =>
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear(),
+  );
+
+  const targetMonthInvoices =
+    currentMonthInvoices.length > 0
+      ? currentMonthInvoices
+      : (() => {
+          let latestInvoice = datedInvoices[0];
+
+          for (const item of datedInvoices.slice(1)) {
+            if (item.date.getTime() > latestInvoice.date.getTime()) {
+              latestInvoice = item;
+            }
+          }
+
+          return datedInvoices.filter(
+            ({ date }) =>
+              date.getMonth() === latestInvoice.date.getMonth() &&
+              date.getFullYear() === latestInvoice.date.getFullYear(),
+          );
+        })();
+
+  return targetMonthInvoices.reduce(
+    (sum, { invoice }) => sum + getInvoiceAmount(invoice),
+    0,
+  );
+};
 
 // Total products
 export const totalProducts = asArray(products).length;
@@ -58,12 +123,8 @@ export const totalRevenue = asArray(invoices)
   .filter((invoice) => isInvoiceStatus(invoice, "paid"))
   .reduce((sum, invoice) => sum + getInvoiceAmount(invoice), 0);
 
-// Monthly revenue (latest point from the chart)
-const revenueChartData = asArray(chartRev);
-export const monthlyRevenue =
-  revenueChartData.length > 0
-    ? toNumber(revenueChartData[revenueChartData.length - 1]?.rev)
-    : 0;
+// Monthly revenue (current calendar month, or the latest month in the dataset)
+export const monthlyRevenue = getMonthlyInvoiceTotal(asArray(invoices));
 
 export const formatCurrencyValue = (
   value: number | string | null | undefined,
@@ -96,9 +157,6 @@ export const revenueData = chartRev.map((item) => ({
   x: item.m,
   y: item.rev,
 }));
-
-import { icons } from "@/constants/icons";
-import { Colors } from "@/constants/theme";
 
 const TrendUp = icons.trendup;
 const TrendDown = icons.trenddown;
