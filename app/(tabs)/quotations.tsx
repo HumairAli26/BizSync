@@ -96,7 +96,7 @@ type QuotationItemDraft = {
   price: string;
 };
 
-const STATUS_META: Record
+const STATUS_META: Record<
   QuotationStatus,
   {
     label: string;
@@ -901,7 +901,10 @@ const QuotationsScreen = () => {
 
     if (!validateQuotationDraftRows(editItemDrafts)) return;
 
-    if (editDiscountText.trim() && !validateNonNegativeNumber(editDiscountText)) {
+    if (
+      editDiscountText.trim() &&
+      !validateNonNegativeNumber(editDiscountText)
+    ) {
       Alert.alert(
         "Invalid discount",
         "Discount must be a valid non-negative number.",
