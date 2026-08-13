@@ -96,7 +96,7 @@ type QuotationItemDraft = {
   price: string;
 };
 
-const STATUS_META: Record<
+const STATUS_META: Record
   QuotationStatus,
   {
     label: string;
@@ -424,6 +424,10 @@ const QuotationsScreen = () => {
   const [editItemDrafts, setEditItemDrafts] = useState<QuotationItemDraft[]>(
     [],
   );
+  // Discount while editing — kept as a separate string field so the
+  // TextInput behaves like every other draft input (newQuotation.discount
+  // works the same way) instead of fighting editDraft's numeric typing.
+  const [editDiscountText, setEditDiscountText] = useState("");
 
   const [orgId, setOrgId] = useState<string>("");
   const [orgPlan, setOrgPlan] = useState<string>("basic");
@@ -845,7 +849,10 @@ const QuotationsScreen = () => {
 
   const startEdit = (quotation: Quotation) => {
     setEditId(quotation.id);
-    setEditDraft({ ...quotation, discount: quotation.discount ?? 0 });
+    setEditDraft({ ...quotation });
+    setEditDiscountText(
+      quotation.discount != null ? String(quotation.discount) : "",
+    );
 
     if (quotation.items && quotation.items.length > 0) {
       setEditItemDrafts(
@@ -857,7 +864,9 @@ const QuotationsScreen = () => {
         })),
       );
     } else {
-      setEditItemDrafts([]);
+      setEditItemDrafts([
+        { id: nextDraftId(), queryText: "", quantity: "1", price: "" },
+      ]);
     }
   };
 
@@ -865,12 +874,12 @@ const QuotationsScreen = () => {
     setEditId(null);
     setEditDraft({});
     setEditItemDrafts([]);
+    setEditDiscountText("");
   };
 
   const saveEdit = async (id: string) => {
     const draftClient = editDraft.client ?? "";
     const draftQuotationNumber = editDraft.quotationNumber ?? "";
-    const draftAmount = String(editDraft.amount ?? "");
     const draftDate = editDraft.date ?? "";
 
     if (
@@ -880,25 +889,53 @@ const QuotationsScreen = () => {
       Alert.alert("Missing info", "Client and quotation number are required.");
       return;
     }
-    if (draftAmount.trim() && !validateNonNegativeNumber(draftAmount)) {
-      Alert.alert("Invalid amount", "Enter a valid non-negative amount.");
+
+    const hasAtLeastOneItem = editItemDrafts.some((d) => d.queryText.trim());
+    if (!hasAtLeastOneItem) {
+      Alert.alert(
+        "No products added",
+        "Add at least one product (SKU or name) with a quantity.",
+      );
+      return;
+    }
+
+    if (!validateQuotationDraftRows(editItemDrafts)) return;
+
+    if (editDiscountText.trim() && !validateNonNegativeNumber(editDiscountText)) {
+      Alert.alert(
+        "Invalid discount",
+        "Discount must be a valid non-negative number.",
+      );
       return;
     }
 
     setSavingEdit(true);
     try {
+      // Re-derive items, subtotal, and total from the edited rows —
+      // this is what makes adding/removing/changing products on an
+      // existing quotation actually take effect (previously saveEdit
+      // ignored items entirely and just patched client/date/status).
+      const { items, total } = await processQuotationItems(editItemDrafts);
+      const discountAmount = Math.max(0, parseFloat(editDiscountText) || 0);
+      const finalTotal = Math.max(0, total - discountAmount);
       const customerLink = resolveCustomerLink(draftClient.trim());
+
       await updateDoc(doc(db, "quotations", id), {
         client: draftClient.trim(),
         quotationNumber: draftQuotationNumber.trim(),
         date: draftDate.trim(),
-        amount: draftAmount.trim() ? parseFloat(draftAmount) || 0 : 0,
+        subtotal: total,
+        discount: discountAmount,
+        amount: finalTotal,
         status: editDraft.status ?? "pending",
         customerId: customerLink.customerId ?? null,
         customerName: customerLink.customerName ?? null,
+        items,
       });
       setEditId(null);
       setEditDraft({});
+      setEditItemDrafts([]);
+      setEditDiscountText("");
     } catch (error) {
       console.error("Error updating quotation:", error);
       Alert.alert("Error", "Could not save changes. Please try again.");
@@ -1409,31 +1446,35 @@ const QuotationsScreen = () => {
                       borderTopColor: "rgba(255,255,255,0.08)",
                     }}
                   >
-                    {quotation.items && quotation.items.length > 0 && (
-                      <View style={{ marginBottom: 12 }}>
-                        {quotation.items.map((item, idx) => (
-                          <View
-                            key={`${quotation.id}-item-${idx}`}
-                            className="flex-row items-center justify-between"
-                            style={{ marginBottom: 6 }}
-                          >
-                            <Text
-                              className="text-text font-inter"
-                              style={{ fontSize: 13 }}
+                    {/* Read-only item summary — hidden while editing since
+                        the editable rows below take over at that point. */}
+                    {!isEditing &&
+                      quotation.items &&
+                      quotation.items.length > 0 && (
+                        <View style={{ marginBottom: 12 }}>
+                          {quotation.items.map((item, idx) => (
+                            <View
+                              key={`${quotation.id}-item-${idx}`}
+                              className="flex-row items-center justify-between"
+                              style={{ marginBottom: 6 }}
                             >
-                              {item.name} × {item.quantity}
-                              {!item.matched ? "  (new product)" : ""}
-                            </Text>
-                            <Text
-                              className="text-text-muted font-inter"
-                              style={{ fontSize: 13 }}
-                            >
-                              {formatPKR(item.lineTotal)}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
+                              <Text
+                                className="text-text font-inter"
+                                style={{ fontSize: 13 }}
+                              >
+                                {item.name} × {item.quantity}
+                                {!item.matched ? "  (new product)" : ""}
+                              </Text>
+                              <Text
+                                className="text-text-muted font-inter"
+                                style={{ fontSize: 13 }}
+                              >
+                                {formatPKR(item.lineTotal)}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
 
                     {isEditing ? (
                       <View>
@@ -1512,6 +1553,118 @@ const QuotationsScreen = () => {
                             },
                           )}
                         </View>
+
+                        {/* Editable products — add, remove, or change any
+                            row, same interaction as the New Quotation
+                            modal. */}
+                        <Text
+                          className="text-text font-inter-bold"
+                          style={{
+                            fontSize: Spacing[4],
+                            marginTop: 4,
+                            marginBottom: 8,
+                          }}
+                        >
+                          Products
+                        </Text>
+
+                        {editItemDrafts.map((row) => (
+                          <View
+                            key={row.id}
+                            className="flex-row items-center gap-2"
+                            style={{ marginBottom: 10 }}
+                          >
+                            <TextInput
+                              value={row.queryText}
+                              onChangeText={(t) =>
+                                updateEditItemRow(row.id, { queryText: t })
+                              }
+                              placeholder="SKU or product name"
+                              placeholderTextColor={Colors.textMuted}
+                              autoCorrect={false}
+                              style={[
+                                editInputStyle,
+                                { flex: 2, marginBottom: 0 },
+                              ]}
+                            />
+                            <TextInput
+                              value={row.quantity}
+                              onChangeText={(t) =>
+                                updateEditItemRow(row.id, { quantity: t })
+                              }
+                              placeholder="Qty"
+                              placeholderTextColor={Colors.textMuted}
+                              keyboardType="number-pad"
+                              autoCorrect={false}
+                              style={[
+                                editInputStyle,
+                                { flex: 1, marginBottom: 0 },
+                              ]}
+                            />
+                            <TextInput
+                              value={row.price}
+                              onChangeText={(t) =>
+                                updateEditItemRow(row.id, { price: t })
+                              }
+                              placeholder="Price (optional)"
+                              placeholderTextColor={Colors.textMuted}
+                              keyboardType="decimal-pad"
+                              autoCorrect={false}
+                              style={[
+                                editInputStyle,
+                                { flex: 1.4, marginBottom: 0 },
+                              ]}
+                            />
+                            <TouchableOpacity
+                              onPress={(e: any) => {
+                                e.stopPropagation?.();
+                                removeEditItemRow(row.id);
+                              }}
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 10,
+                                backgroundColor: "rgba(239,68,68,0.15)",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Text style={{ color: "#ef4444" }}>✕</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+
+                        <TouchableOpacity
+                          onPress={(e: any) => {
+                            e.stopPropagation?.();
+                            addEditItemRow();
+                          }}
+                          style={{
+                            alignSelf: "flex-start",
+                            paddingVertical: 8,
+                            paddingHorizontal: 4,
+                            marginBottom: 14,
+                          }}
+                        >
+                          <Text
+                            className="font-inter-bold"
+                            style={{
+                              color: Colors.primary ?? "#4b7c59",
+                              fontSize: 13,
+                            }}
+                          >
+                            + Add another product
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TextInput
+                          value={editDiscountText}
+                          onChangeText={setEditDiscountText}
+                          placeholder="Discount (Rs., optional)"
+                          placeholderTextColor={Colors.textMuted}
+                          keyboardType="decimal-pad"
+                          style={editInputStyle}
+                        />
 
                         <View className="flex-row flex-wrap gap-3">
                           <TouchableOpacity
