@@ -10,6 +10,7 @@ import {
   initializeAuth,
 } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 import { Platform } from "react-native";
 
 const firebaseConfig: FirebaseOptions = {
@@ -38,5 +39,5 @@ try {
 }
 
 export { auth };
-
+export const storage = getStorage(app);
 export const db: Firestore = getFirestore(app);
