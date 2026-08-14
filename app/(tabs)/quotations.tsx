@@ -76,6 +76,14 @@ type Quotation = {
   createdAt?: number;
 };
 
+type InvoiceStatus = "paid" | "pending" | "overdue" | "draft" | "partial";
+
+type Invoice = {
+  id: string;
+  invoiceNumber?: string;
+  createdAt?: number;
+};
+
 type Product = {
   id: string;
   sku?: string;
@@ -151,6 +159,19 @@ const generateNextQuotationNumber = (quotations: Quotation[]) => {
     .sort((a, b) => b - a);
 
   return `QT-${String(numbers[0] + 1).padStart(4, "0")}`;
+};
+
+const generateNextInvoiceNumber = (invoices: Invoice[]) => {
+  if (!invoices.length) return "INV-0001";
+
+  const numbers = invoices
+    .map((i) => {
+      const match = i.invoiceNumber?.match(/\d+/);
+      return match ? parseInt(match[0], 10) : 0;
+    })
+    .sort((a, b) => b - a);
+
+  return `INV-${String(numbers[0] + 1).padStart(4, "0")}`;
 };
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
@@ -271,7 +292,7 @@ const buildQuotationHtml = (opts: QuotationPdfOptions): string => {
             const td = `padding:6px 8px;border-bottom:1px solid #1a1a1a;border-right:1px solid #1a1a1a;`;
             return `<tr>
               <td style="${td}">${idx + 1}</td>
-              <td style="${td}">${escapeHtml(item.name)}${!item.matched ? " (new)" : ""}</td>
+              <td style="${td}">${escapeHtml(item.name)}</td>
               <td style="${td}">${item.quantity}</td>
               <td style="${td}">${formatPKR(item.unitPrice)}</td>
               <td class="last-col" style="padding:6px 8px;border-bottom:1px solid #1a1a1a;text-align:right;width:120px;">${formatPKR(item.lineTotal)}</td>
@@ -398,6 +419,7 @@ const QuotationsScreen = () => {
   const [activeTab, setActiveTab] = useState<"all" | QuotationStatus>("all");
 
   const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -406,6 +428,7 @@ const QuotationsScreen = () => {
   const [editDraft, setEditDraft] = useState<Partial<Quotation>>({});
   const [savingEdit, setSavingEdit] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
 
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [savingAdd, setSavingAdd] = useState(false);
@@ -471,6 +494,29 @@ const QuotationsScreen = () => {
       },
     );
     return unsubscribe;
+  }, [orgId]);
+
+  React.useEffect(() => {
+    if (!orgId) return;
+    const q = query(
+      collection(db, "invoices"),
+      where("orgId", "==", orgId),
+      orderBy("createdAt", "desc"),
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Invoice, "id">),
+        }));
+        setInvoices(data);
+      },
+      (error) => {
+        console.error("Invoices listener error (quotations):", error);
+      },
+    );
+    return () => unsubscribe();
   }, [orgId]);
 
   const isPro = orgPlan === "pro";
@@ -1032,6 +1078,63 @@ const QuotationsScreen = () => {
     }
   };
 
+  const handleConvertToInvoice = async (quotation: Quotation) => {
+    if (quotation.status === "converted") {
+      Alert.alert(
+        "Already converted",
+        "This quotation has already been converted to an invoice.",
+      );
+      return;
+    }
+
+    if (!orgId) {
+      Alert.alert("Error", "Organization info is missing. Please try again.");
+      return;
+    }
+
+    setConvertingId(quotation.id);
+    try {
+      const items = quotation.items ?? [];
+      const subtotal =
+        quotation.subtotal ??
+        items.reduce((sum, item) => sum + item.lineTotal, 0);
+      const discount = quotation.discount ?? 0;
+      const amount = Math.max(0, quotation.amount ?? subtotal - discount);
+      const nextInvoiceNumber = generateNextInvoiceNumber(invoices);
+      const invoiceStatus: InvoiceStatus = "pending";
+
+      await addDoc(collection(db, "invoices"), {
+        orgId,
+        client: quotation.client,
+        invoiceNumber: nextInvoiceNumber,
+        date: getTodayDate(),
+        subtotal,
+        discount,
+        amount,
+        amountPaid: 0,
+        status: invoiceStatus,
+        type: "sales",
+        customerId: quotation.customerId ?? null,
+        customerName: quotation.customerName ?? null,
+        items,
+        sourceQuotationId: quotation.id,
+        sourceQuotationNumber: quotation.quotationNumber,
+        createdAt: Date.now(),
+      });
+
+      await updateDoc(doc(db, "quotations", quotation.id), {
+        status: "converted",
+      });
+
+      Alert.alert("Success", `Invoice ${nextInvoiceNumber} created.`);
+    } catch (error) {
+      console.error("Error converting quotation to invoice:", error);
+      Alert.alert("Error", "Could not convert quotation to invoice.");
+    } finally {
+      setConvertingId(null);
+    }
+  };
+
   const pendingParts = getPKRParts(stats.totalPending);
   const acceptedParts = getPKRParts(stats.totalAccepted);
   const convertedParts = getPKRParts(stats.totalConverted);
@@ -1318,6 +1421,8 @@ const QuotationsScreen = () => {
             const isExpanded = expandedId === quotation.id;
             const isEditing = editId === quotation.id;
             const isDownloading = downloadingId === quotation.id;
+            const isConverting = convertingId === quotation.id;
+            const canConvert = quotation.status !== "converted";
 
             return (
               <View
@@ -1466,7 +1571,6 @@ const QuotationsScreen = () => {
                                 style={{ fontSize: 13 }}
                               >
                                 {item.name} × {item.quantity}
-                                {!item.matched ? "  (new product)" : ""}
                               </Text>
                               <Text
                                 className="text-text-muted font-inter"
@@ -1710,6 +1814,37 @@ const QuotationsScreen = () => {
                       </View>
                     ) : (
                       <View className="flex-row flex-wrap gap-3">
+                        <TouchableOpacity
+                          disabled={isConverting || !canConvert}
+                          onPress={(e: any) => {
+                            e.stopPropagation?.();
+                            handleConvertToInvoice(quotation);
+                          }}
+                          style={{
+                            flex: 1,
+                            minWidth: 120,
+                            backgroundColor: canConvert
+                              ? "rgba(34,197,94,0.15)"
+                              : "rgba(156,163,175,0.15)",
+                            borderRadius: 10,
+                            paddingVertical: 10,
+                            alignItems: "center",
+                            opacity: isConverting ? 0.6 : 1,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: canConvert ? "#22c55e" : "#9ca3af",
+                            }}
+                            className="font-inter-bold"
+                          >
+                            {isConverting
+                              ? "Converting..."
+                              : canConvert
+                                ? "Convert to Invoice"
+                                : "Already Converted"}
+                          </Text>
+                        </TouchableOpacity>
                         <TouchableOpacity
                           disabled={isDownloading}
                           onPress={(e: any) => {
