@@ -1078,7 +1078,23 @@ const QuotationsScreen = () => {
     }
   };
 
+  const promptConvertUpgrade = () => {
+    Alert.alert(
+      "Pro Feature",
+      "Converting quotations to invoices is available on the Pro plan. Upgrade to unlock this feature.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Upgrade", onPress: () => router.push("/upgrade") },
+      ],
+    );
+  };
+
   const handleConvertToInvoice = async (quotation: Quotation) => {
+    if (!isPro) {
+      promptConvertUpgrade();
+      return;
+    }
+
     if (quotation.status === "converted") {
       Alert.alert(
         "Already converted",
@@ -1815,17 +1831,23 @@ const QuotationsScreen = () => {
                     ) : (
                       <View className="flex-row flex-wrap gap-3">
                         <TouchableOpacity
-                          disabled={isConverting || !canConvert}
+                          disabled={isConverting || (!canConvert && isPro)}
                           onPress={(e: any) => {
                             e.stopPropagation?.();
+                            if (!isPro) {
+                              promptConvertUpgrade();
+                              return;
+                            }
                             handleConvertToInvoice(quotation);
                           }}
                           style={{
                             flex: 1,
                             minWidth: 120,
-                            backgroundColor: canConvert
-                              ? "rgba(34,197,94,0.15)"
-                              : "rgba(156,163,175,0.15)",
+                            backgroundColor: !isPro
+                              ? "rgba(156,163,175,0.15)"
+                              : canConvert
+                                ? "rgba(34,197,94,0.15)"
+                                : "rgba(156,163,175,0.15)",
                             borderRadius: 10,
                             paddingVertical: 10,
                             alignItems: "center",
@@ -1834,15 +1856,21 @@ const QuotationsScreen = () => {
                         >
                           <Text
                             style={{
-                              color: canConvert ? "#22c55e" : "#9ca3af",
+                              color: !isPro
+                                ? "#9ca3af"
+                                : canConvert
+                                  ? "#22c55e"
+                                  : "#9ca3af",
                             }}
                             className="font-inter-bold"
                           >
                             {isConverting
                               ? "Converting..."
-                              : canConvert
-                                ? "Convert to Invoice"
-                                : "Already Converted"}
+                              : !isPro
+                                ? "🔒 Convert to Invoice"
+                                : canConvert
+                                  ? "Convert to Invoice"
+                                  : "Already Converted"}
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity

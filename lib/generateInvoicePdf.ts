@@ -68,34 +68,24 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
     data.items && data.items.length > 0
       ? data.items
       : [
-        {
-          name: "Services rendered",
-          quantity: 1,
-          unitPrice: data.amount ?? 0,
-          lineTotal: data.amount ?? 0,
-        },
-      ];
+          {
+            name: "Services rendered",
+            quantity: 1,
+            unitPrice: data.amount ?? 0,
+            lineTotal: data.amount ?? 0,
+          },
+        ];
 
   const subtotal = items.reduce((sum, item) => sum + (item.lineTotal || 0), 0);
   const discount = Math.max(0, data.discount ?? 0);
   const grandTotal = Math.max(0, subtotal - discount);
 
-  // A "paid" invoice must never show a balance due, regardless of whether
-  // product prices were edited after the invoice was settled.
-  const isPaid = data.status?.toLowerCase() === "paid";
-
-  // If paid, amountPaid should equal grandTotal to prevent mismatch
-  let amountPaid = typeof data.amountPaid === "number" ? data.amountPaid : 0;
-  if (isPaid) {
-    amountPaid = grandTotal;
-  }
-
-  const balanceDue = isPaid
-    ? 0
-    : typeof data.balanceDue === "number"
+  const amountPaid = typeof data.amountPaid === "number" ? data.amountPaid : 0;
+  const balanceDue =
+    typeof data.balanceDue === "number"
       ? data.balanceDue
       : Math.max(0, grandTotal - amountPaid);
-  const showPaymentSummary = amountPaid > 0 || isPaid;
+  const showPaymentSummary = amountPaid > 0;
 
   const rowsHtml = items
     .map(
@@ -148,9 +138,23 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
+
+        /* Per-physical-page margin. This is what actually repeats
+           consistently on every page — body padding does NOT reliably
+           carry over to continuation pages once content spans multiple
+           pages (that's what was causing page 2+ to start flush against
+           the top edge with no space). */
+        @page {
+          size: A4;
+          margin: 26px 22px;
+        }
+
         body {
           font-family: -apple-system, Helvetica, Arial, sans-serif;
-          padding: 26px;
+          /* Horizontal-only here on purpose — top/bottom spacing on every
+             page now comes from @page margin above, not body padding. */
+          padding: 0;
+          margin: 0;
           color: #1a1a1a;
           font-size: 12px;
         }
@@ -206,10 +210,28 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
         .items-table-wrap {
           border: 1.5px solid #1a1a1a;
           margin-bottom: 4px;
+          /* Without this, a browser splitting this box across a page break
+             only draws the border around the box as a whole (default
+             "slice" behavior) — so the continuation on the next page has
+             no top border and looks cut off. "clone" redraws the full
+             border around each page fragment instead. */
+          -webkit-box-decoration-break: clone;
+          box-decoration-break: clone;
         }
         table {
           width: 100%;
           border-collapse: collapse;
+        }
+        thead {
+          /* Repeats the column headers at the top of every printed page
+             the table spans — this one we DO want repeating. */
+          display: table-header-group;
+        }
+        tr {
+          /* Stops a single row from being sliced in half across a page
+             break, which was also contributing to the jagged/cut border
+             look. */
+          page-break-inside: avoid;
         }
         th {
           text-align: left;
@@ -248,29 +270,35 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
           text-align: right;
           width: 90px;
         }
-        tfoot td {
+
+        /* Totals block — deliberately a plain <div> OUTSIDE the <table>,
+           not a <tfoot>. <tfoot> gets re-rendered at the bottom of every
+           printed page by the PDF engine's own table-pagination logic
+           regardless of  override displays — that's what was causing
+           Subtotal/Total to appear after every page instead of once at
+           the real end. A block-level div after the table has no such
+           per-page repeat behavior; it prints exactly once, at the point
+           the content actually ends. */
+        .totals-block {
+          margin-left: auto;
+          width: 260px;
+          page-break-inside: avoid;
+        }
+        .totals-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 4px 8px;
           font-size: 11px;
-          padding: 5px 8px;
-          border-right: none;
         }
-        .totals-label {
-          text-align: right;
-          font-weight: 600;
-          border-right: 1px solid #1a1a1a;
-        }
-        .totals-value {
-          text-align: right;
-        }
-        tfoot tr.discount-row td {
+        .totals-row.discount-row {
           color: #b91c1c;
         }
-        tfoot tr.total-row td {
+        .totals-row.total-row {
           border-top: 1.5px solid #1a1a1a;
+          margin-top: 2px;
+          padding-top: 7px;
           font-weight: 700;
           font-size: 13px;
-        }
-        tfoot tr:last-child td {
-          border-bottom: none;
         }
         .payment-summary {
           margin-top: 10px;
@@ -311,6 +339,7 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
           margin-top: 46px;
           display: flex;
           justify-content: flex-end;
+          page-break-inside: avoid;
         }
         .signature-block {
           width: 220px;
@@ -342,8 +371,9 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
       <div class="header">
         <div>
           <p class="org-name">${data.orgName}</p>
-          ${hasOrgDetails
-      ? `<div class="org-details">
+          ${
+            hasOrgDetails
+              ? `<div class="org-details">
             ${orgAddress ? `${orgAddress}<br/>` : ""}
             ${orgEmail ? `${orgEmail}<br/>` : ""}
             ${orgPhone ? `Ph: ${orgPhone}${orgCell ? "" : "<br/>"}` : ""}
@@ -352,8 +382,8 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
             ${orgNtn ? `NTN: ${orgNtn}${orgSalesTaxNo ? " &nbsp;|&nbsp; " : "<br/>"}` : ""}
             ${orgSalesTaxNo ? `STRN: ${orgSalesTaxNo}<br/>` : ""}
           </div>`
-      : ""
-    }
+              : ""
+          }
         </div>
         <div>
           <p class="invoice-title">${invoiceLabel}</p>
@@ -383,28 +413,31 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
           <tbody>
             ${rowsHtml}
           </tbody>
-          <tfoot>
-            <tr>
-              <td class="totals-label" colspan="4">Subtotal</td>
-              <td class="totals-value last-col">${formatPKR(subtotal)}</td>
-            </tr>
-            ${discount > 0
-      ? `<tr class="discount-row">
-              <td class="totals-label" colspan="4">Discount</td>
-              <td class="totals-value last-col">-${formatPKR(discount)}</td>
-            </tr>`
-      : ""
-    }
-            <tr class="total-row">
-              <td class="totals-label" colspan="4">Total</td>
-              <td class="totals-value last-col">${formatPKR(grandTotal)}</td>
-            </tr>
-          </tfoot>
         </table>
       </div>
 
-      ${showPaymentSummary
-      ? `
+      <div class="totals-block">
+        <div class="totals-row">
+          <span>Subtotal</span>
+          <span>${formatPKR(subtotal)}</span>
+        </div>
+        ${
+          discount > 0
+            ? `<div class="totals-row discount-row">
+          <span>Discount</span>
+          <span>-${formatPKR(discount)}</span>
+        </div>`
+            : ""
+        }
+        <div class="totals-row total-row">
+          <span>Total</span>
+          <span>${formatPKR(grandTotal)}</span>
+        </div>
+      </div>
+
+      ${
+        showPaymentSummary
+          ? `
       <div class="payment-summary">
         <div class="payment-summary-title">Payment Summary</div>
         <div class="payment-summary-row">
@@ -416,8 +449,8 @@ function buildInvoiceHtml(data: InvoicePdfData): string {
           <strong>${formatPKR(balanceDue)}</strong>
         </div>
       </div>`
-      : ""
-    }
+          : ""
+      }
 
       <div class="signature-footer">
         <div class="signature-block">
