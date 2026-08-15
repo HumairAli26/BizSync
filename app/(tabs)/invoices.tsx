@@ -7,6 +7,7 @@ import {
   validatePositiveInteger,
   validateRequiredText,
 } from "@/lib/validation";
+import { router } from "expo-router";
 import {
   addDoc,
   collection,
@@ -41,6 +42,11 @@ const MoreIcon = icons.moreVertical ?? icons.more;
 
 const SafeAreaView = styled(RNSafeAreaView);
 const DESKTOP_BREAKPOINT = 900;
+
+// Basic-plan monthly invoice cap (sales + purchase invoices combined) —
+// Pro orgs are unlimited. Mirrors the same cap pattern used on the
+// Quotations screen.
+const BASIC_MONTHLY_INVOICE_LIMIT = 50;
 
 type InvoiceStatus = "paid" | "pending" | "overdue" | "draft" | "partial";
 type InvoiceType = "sales" | "purchase";
@@ -263,6 +269,10 @@ const InvoicesScreen = () => {
   const [orgSalesTaxNo, setOrgSalesTaxNo] = useState<string>("");
   const [orgId, setOrgId] = useState<string>("");
 
+  // Subscription plan — source of truth is organizations/{orgId}.subscription.plan.
+  // Drives the Basic-plan monthly invoice cap below (same pattern as Quotations).
+  const [orgPlan, setOrgPlan] = useState<string>("basic");
+
   // The signed-in user's own name — used only for the invoice's
   // single-creator signature block (System.User.Name).
   const [signedInUserName, setSignedInUserName] = useState<string>("");
@@ -283,6 +293,22 @@ const InvoicesScreen = () => {
 
     return unsubscribe;
   }, []);
+
+  // Subscription plan listener
+  React.useEffect(() => {
+    if (!orgId) return;
+    const unsubscribe = onSnapshot(
+      doc(db, "organizations", orgId),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setOrgPlan(snapshot.data().subscription?.plan ?? "basic");
+        }
+      },
+    );
+    return unsubscribe;
+  }, [orgId]);
+
+  const isPro = orgPlan === "pro";
 
   // Fetch org-level branding (address/phone/cell/NTN/sales tax no, org name,
   // org email) from the ORG ADMIN's account, not the signed-in user's own
@@ -439,6 +465,38 @@ const InvoicesScreen = () => {
     return { totalDue, overdue, collected };
   }, [invoices]);
 
+  // How many invoices (sales + purchase combined) this org has created in
+  // the current calendar month — drives the Basic-plan cap below.
+  const invoicesThisMonth = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const monthEnd = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      1,
+    ).getTime();
+    return invoices.filter(
+      (inv) =>
+        typeof inv.createdAt === "number" &&
+        inv.createdAt >= monthStart &&
+        inv.createdAt < monthEnd,
+    ).length;
+  }, [invoices]);
+
+  const invoiceLimitReached =
+    !isPro && invoicesThisMonth >= BASIC_MONTHLY_INVOICE_LIMIT;
+
+  const promptInvoiceUpgrade = () => {
+    Alert.alert(
+      "Monthly Limit Reached",
+      `Basic plan is limited to ${BASIC_MONTHLY_INVOICE_LIMIT} invoices per month. Upgrade to Pro for unlimited invoices.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Upgrade", onPress: () => router.push("/upgrade") },
+      ],
+    );
+  };
+
   // ---- Item draft helpers (Add Invoice modal) ----
   const addItemRow = () => {
     setItemDrafts((rows) => [
@@ -508,6 +566,12 @@ const InvoicesScreen = () => {
   };
 
   const openNewInvoicePicker = () => {
+    // Checked up front so tapping "+ New Invoice" doesn't even open the
+    // Sales/Purchase picker once the org has hit its monthly cap.
+    if (invoiceLimitReached) {
+      promptInvoiceUpgrade();
+      return;
+    }
     setChooseTypeVisible(true);
   };
 
@@ -769,6 +833,15 @@ const InvoicesScreen = () => {
   };
 
   const handleAddInvoice = async () => {
+    // Re-check the cap at submit time too — the modal could have been open
+    // for a while, or another device on the same org could have created
+    // invoices in the meantime.
+    if (invoiceLimitReached) {
+      setAddModalVisible(false);
+      promptInvoiceUpgrade();
+      return;
+    }
+
     if (
       !validateRequiredText(newInvoice.client) ||
       !validateRequiredText(newInvoice.invoiceNumber)
@@ -843,6 +916,14 @@ const InvoicesScreen = () => {
   };
 
   const handleAddPurchaseInvoice = async () => {
+    // Re-check the cap at submit time too, same as sales invoices — the cap
+    // applies to sales + purchase invoices combined.
+    if (invoiceLimitReached) {
+      setPurchaseModalVisible(false);
+      promptInvoiceUpgrade();
+      return;
+    }
+
     if (
       !newPurchaseInvoice.vendor.trim() ||
       !newPurchaseInvoice.invoiceNumber.trim()
@@ -1171,11 +1252,56 @@ const InvoicesScreen = () => {
                 style={{ fontSize: Spacing[4] }}
                 className="text-text font-inter-bold"
               >
-                + New Invoice
+                {invoiceLimitReached ? "🔒 New Invoice" : "+ New Invoice"}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Basic-plan monthly usage indicator */}
+        {!isPro && (
+          <TouchableOpacity
+            onPress={() => router.push("/upgrade")}
+            activeOpacity={0.8}
+            style={{
+              marginTop: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: invoiceLimitReached
+                ? "rgba(239,68,68,0.1)"
+                : "rgba(255,255,255,0.05)",
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: invoiceLimitReached
+                ? "rgba(239,68,68,0.3)"
+                : "rgba(255,255,255,0.08)",
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                color: invoiceLimitReached ? "#ef4444" : Colors.textMuted,
+                fontWeight: "600",
+              }}
+            >
+              {invoiceLimitReached
+                ? `Monthly limit reached (${invoicesThisMonth}/${BASIC_MONTHLY_INVOICE_LIMIT}) — upgrade for unlimited`
+                : `${invoicesThisMonth}/${BASIC_MONTHLY_INVOICE_LIMIT} invoices used this month`}
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: Colors.primary ?? "#4b7c59",
+                fontWeight: "700",
+              }}
+            >
+              Upgrade
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Search */}

@@ -131,9 +131,23 @@ function buildQuotationHtml(data: QuotationPdfData): string {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
+
+          /* Per-physical-page margin. This is what actually repeats
+             consistently on every page — body padding does NOT reliably
+             carry over to continuation pages once content spans multiple
+             pages (that's what was causing page 2+ to start flush against
+             the top edge with no space). */
+          @page {
+            size: A4;
+            margin: 26px 22px;
+          }
+
           body {
             font-family: -apple-system, Helvetica, Arial, sans-serif;
-            padding: 26px;
+            /* Horizontal-only here on purpose — top/bottom spacing on every
+               page now comes from @page margin above, not body padding. */
+            padding: 0;
+            margin: 0;
             color: #1a1a1a;
             font-size: 12px;
           }
@@ -206,13 +220,6 @@ function buildQuotationHtml(data: QuotationPdfData): string {
                the table spans — this one we DO want repeating. */
             display: table-header-group;
           }
-          tfoot {
-            /* By default browsers treat <tfoot> as a repeating footer and
-               print Subtotal/Discount/Total at the bottom of every page.
-               Forcing it to render as a plain row group makes it print only
-               once, at the table's true end. */
-            display: table-row-group;
-          }
           tr {
             /* Stops a single row from being sliced in half across a page
                break, which was also contributing to the jagged/cut border
@@ -256,29 +263,35 @@ function buildQuotationHtml(data: QuotationPdfData): string {
             text-align: right;
             width: 90px;
           }
-          tfoot td {
+
+          /* Totals block — deliberately a plain <div> OUTSIDE the <table>,
+             not a <tfoot>. <tfoot> gets re-rendered at the bottom of every
+             printed page by the PDF engine's own table-pagination logic
+             regardless of display overrides — that's what was causing
+             Subtotal/Total to appear after every page instead of once at
+             the real end. A block-level div after the table has no such
+             per-page repeat behavior; it prints exactly once, at the point
+             the content actually ends. */
+          .totals-block {
+            margin-left: auto;
+            width: 260px;
+            page-break-inside: avoid;
+          }
+          .totals-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 8px;
             font-size: 11px;
-            padding: 5px 8px;
-            border-right: none;
           }
-          .totals-label {
-            text-align: right;
-            font-weight: 600;
-            border-right: 1px solid #1a1a1a;
-          }
-          .totals-value {
-            text-align: right;
-          }
-          tfoot tr.discount-row td {
+          .totals-row.discount-row {
             color: #b91c1c;
           }
-          tfoot tr.total-row td {
+          .totals-row.total-row {
             border-top: 1.5px solid #1a1a1a;
+            margin-top: 2px;
+            padding-top: 7px;
             font-weight: 700;
             font-size: 13px;
-          }
-          tfoot tr:last-child td {
-            border-bottom: none;
           }
           .payment-summary {
             margin-top: 10px;
@@ -319,6 +332,7 @@ function buildQuotationHtml(data: QuotationPdfData): string {
             margin-top: 46px;
             display: flex;
             justify-content: flex-end;
+            page-break-inside: avoid;
           }
           .signature-block {
             width: 220px;
@@ -392,25 +406,26 @@ function buildQuotationHtml(data: QuotationPdfData): string {
             <tbody>
               ${rowsHtml}
             </tbody>
-            <tfoot>
-              <tr>
-                <td class="totals-label" colspan="4">Subtotal</td>
-                <td class="totals-value last-col">${formatPKR(subtotal)}</td>
-              </tr>
-              ${
-                discount > 0
-                  ? `<tr class="discount-row">
-                <td class="totals-label" colspan="4">Discount</td>
-                <td class="totals-value last-col">-${formatPKR(discount)}</td>
-              </tr>`
-                  : ""
-              }
-              <tr class="total-row">
-                <td class="totals-label" colspan="4">Total</td>
-                <td class="totals-value last-col">${formatPKR(grandTotal)}</td>
-              </tr>
-            </tfoot>
           </table>
+        </div>
+
+        <div class="totals-block">
+          <div class="totals-row">
+            <span>Subtotal</span>
+            <span>${formatPKR(subtotal)}</span>
+          </div>
+          ${
+            discount > 0
+              ? `<div class="totals-row discount-row">
+            <span>Discount</span>
+            <span>-${formatPKR(discount)}</span>
+          </div>`
+              : ""
+          }
+          <div class="totals-row total-row">
+            <span>Total</span>
+            <span>${formatPKR(grandTotal)}</span>
+          </div>
         </div>
   
         ${
