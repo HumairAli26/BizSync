@@ -19,7 +19,6 @@ export default function App() {
   const isDesktop = width >= DESKTOP_BREAKPOINT;
 
   return (
-    /*Header Section*/
     <SafeAreaView className="flex-1 bg-background p-5">
       <FlatList
         style={{ flex: 1 }}
@@ -31,14 +30,14 @@ export default function App() {
             style={
               isDesktop
                 ? {
-                  width: "100%",
-                  maxWidth: 1400,
-                  alignSelf: "center",
-                  paddingTop: 8,
-                  paddingBottom: 24,
-                  gap: 24,
-                }
-                : { gap: 20, paddingVertical: 10 }
+                    width: "100%",
+                    maxWidth: 1400,
+                    alignSelf: "center",
+                    paddingTop: 8,
+                    paddingBottom: 24,
+                    gap: 24,
+                  }
+                : { gap: 10, paddingVertical: 2 }
             }
           >
             <MainHeader />
@@ -74,11 +73,14 @@ export default function App() {
                 </View>
               </View>
             ) : (
-              <View style={{ gap: 20 }}>
-                <RevenueGraph />
-                <ListHeadings title="Recent Transactions" button="See All" />
+              <View style={{ gap: 4 }}>
+                <View style={{ marginTop: 4 }}>
+                  <ListHeadings title="Recent Transactions" button="See All" />
+                </View>
                 <RecentTransactions />
-                <ListHeadings title="Best Selling" button="View All" />
+                <View style={{ marginTop: 4 }}>
+                  <ListHeadings title="Best Selling" button="View All" />
+                </View>
                 <BestSelling />
               </View>
             )}
