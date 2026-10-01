@@ -1,3 +1,4 @@
+import OfflineBanner from "@/Components/OfflineBanner";
 import { auth, db } from "@/config/firebaseConfig";
 import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
@@ -12,7 +13,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -46,6 +46,10 @@ type Product = {
   category: string;
   price: string;
   stock: number;
+  // true while this doc's latest write hasn't been confirmed by the server
+  // yet (offline edit, or online but still in flight). Comes from Firestore's
+  // snapshot metadata, not a field we store.
+  pending: boolean;
 };
 
 const getStatus = (stock: number) => {
@@ -106,8 +110,12 @@ const ProductsScreen = () => {
       where("orgId", "==", orgId),
       orderBy("name"),
     );
+    // includeMetadataChanges fires an extra snapshot when a pending write
+    // gets confirmed by the server, so pending badges clear on their own
+    // without needing a separate listener per document.
     const unsubscribe = onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snapshot) => {
         // Normalize every field so a doc missing name/sku/category can
         // never crash the search filter below (was causing the search
@@ -122,6 +130,7 @@ const ProductsScreen = () => {
             category: raw.category ?? "Uncategorized",
             price: raw.price ?? "0",
             stock: Number(raw.stock ?? 0) || 0,
+            pending: d.metadata.hasPendingWrites,
           } as Product;
         });
         setProducts(data);
@@ -155,19 +164,18 @@ const ProductsScreen = () => {
     return { total, low, out };
   }, [products]);
 
-  // Checks Firestore for an existing product with the same SKU within this org
+  // Checks for an existing product with the same SKU within this org
   // (case-insensitive) — two different orgs can reuse the same SKU safely.
-  const isSkuTaken = async (sku: string, excludeId?: string) => {
+  // Checked against the live `products` list (already synced by the
+  // onSnapshot listener above) instead of a fresh getDocs query, so this
+  // works offline too — a getDocs round-trip can hang or miss recently
+  // cached data when there's no connection.
+  const isSkuTaken = (sku: string, excludeId?: string) => {
     const normalizedSku = sku.trim().toUpperCase();
-    if (!normalizedSku || !orgId) return false;
-    const q = query(
-      collection(db, "products"),
-      where("orgId", "==", orgId),
-      where("skuUpper", "==", normalizedSku),
+    if (!normalizedSku) return false;
+    return products.some(
+      (p) => p.skuUpper === normalizedSku && p.id !== excludeId,
     );
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) return false;
-    return snapshot.docs.some((d) => d.id !== excludeId);
   };
 
   const handleAddProduct = async () => {
@@ -192,7 +200,7 @@ const ProductsScreen = () => {
 
     setSavingAdd(true);
     try {
-      const taken = await isSkuTaken(newProduct.sku);
+      const taken = isSkuTaken(newProduct.sku);
       if (taken) {
         Alert.alert(
           "Duplicate SKU",
@@ -252,7 +260,7 @@ const ProductsScreen = () => {
 
     setSavingEdit(true);
     try {
-      const taken = await isSkuTaken(draftSku, id);
+      const taken = isSkuTaken(draftSku, id);
       if (taken) {
         Alert.alert(
           "Duplicate SKU",
@@ -315,6 +323,7 @@ const ProductsScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-background p-5">
+      <OfflineBanner />
       {/* Header */}
       <View className="home-header">
         <View className="flex-row justify-between items-center w-full">
@@ -501,23 +510,48 @@ const ProductsScreen = () => {
                         >
                           {product.name}
                         </Text>
-                        <View
-                          style={{
-                            backgroundColor: status.bg,
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
-                            borderRadius: 20,
-                          }}
-                        >
-                          <Text
+                        <View className="flex-row items-center">
+                          {product.pending && (
+                            <View
+                              style={{
+                                backgroundColor: "rgba(245,158,11,0.15)",
+                                paddingHorizontal: 8,
+                                paddingVertical: 4,
+                                borderRadius: 20,
+                                marginRight: 6,
+                                flexDirection: "row",
+                                alignItems: "center",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: "#f59e0b",
+                                  fontSize: 11,
+                                  fontWeight: "600",
+                                }}
+                              >
+                                ⏳ Syncing
+                              </Text>
+                            </View>
+                          )}
+                          <View
                             style={{
-                              color: status.color,
-                              fontSize: 12,
-                              fontWeight: "600",
+                              backgroundColor: status.bg,
+                              paddingHorizontal: 10,
+                              paddingVertical: 4,
+                              borderRadius: 20,
                             }}
                           >
-                            {status.label}
-                          </Text>
+                            <Text
+                              style={{
+                                color: status.color,
+                                fontSize: 12,
+                                fontWeight: "600",
+                              }}
+                            >
+                              {status.label}
+                            </Text>
+                          </View>
                         </View>
                       </View>
                       <Text

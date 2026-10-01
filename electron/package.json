@@ -15,7 +15,7 @@
     "productName": "BizSync",
     "directories": {
       "output": "release",
-      "buildResources": "assets"
+      "buildResources": "builds"
     },
     "files": [
       "**/*",
@@ -23,13 +23,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "dist/favicon.ico"
+      "icon": "builds/favicon.ico"
     }
-  },
-  "allowScripts": {
-    "electron@37.10.3": true
-  },
-  "dependencies": {
-    "express": "^4.22.2"
   }
 }

@@ -1,3 +1,4 @@
+import OfflineBanner from "@/Components/OfflineBanner";
 import { auth, db } from "@/config/firebaseConfig";
 import { icons } from "@/constants/icons";
 import { Colors, Spacing } from "@/constants/theme";
@@ -76,6 +77,11 @@ type Invoice = {
   subtotal?: number;
   discount?: number;
   createdAt?: number;
+  // true while this doc's latest write hasn't been confirmed by the server
+  // yet (offline edit, or online but still in flight). From Firestore's
+  // snapshot metadata — not a stored field. Named syncPending to avoid
+  // clashing with the payment-status "pending" in InvoiceStatus.
+  syncPending?: boolean;
 };
 
 type Product = {
@@ -357,10 +363,12 @@ const InvoicesScreen = () => {
     );
     const unsubscribe = onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snapshot) => {
         const data = snapshot.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Omit<Invoice, "id">),
+          syncPending: d.metadata.hasPendingWrites,
         }));
         setInvoices(data);
         setLoading(false);
@@ -1227,6 +1235,7 @@ const InvoicesScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-background p-5">
+      <OfflineBanner />
       {/* Header */}
       <View className="home-header">
         <View className="flex-row justify-between items-center w-full">
@@ -1569,23 +1578,46 @@ const InvoicesScreen = () => {
                       </Text>
                     </View>
 
-                    <View
-                      style={{
-                        backgroundColor: meta.bg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 4,
-                        borderRadius: 20,
-                      }}
-                    >
-                      <Text
+                    <View className="flex-row items-center">
+                      {invoice.syncPending && (
+                        <View
+                          style={{
+                            backgroundColor: "rgba(245,158,11,0.15)",
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 20,
+                            marginRight: 6,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: "#f59e0b",
+                              fontSize: 11,
+                              fontWeight: "600",
+                            }}
+                          >
+                            ⏳ Syncing
+                          </Text>
+                        </View>
+                      )}
+                      <View
                         style={{
-                          color: meta.color,
-                          fontSize: 12,
-                          fontWeight: "600",
+                          backgroundColor: meta.bg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 20,
                         }}
                       >
-                        {meta.label}
-                      </Text>
+                        <Text
+                          style={{
+                            color: meta.color,
+                            fontSize: 12,
+                            fontWeight: "600",
+                          }}
+                        >
+                          {meta.label}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                 </TouchableOpacity>
